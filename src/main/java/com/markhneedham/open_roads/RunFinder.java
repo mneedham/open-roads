@@ -45,7 +45,7 @@ public class RunFinder
 //                .map( SearchHit::new );
 
         Uniqueness uniqueness = Uniqueness.RELATIONSHIP_PATH;
-        boolean bfs = false;
+        boolean bfs = true;
         Iterable<Node> startNodes = Collections.singleton( startPoint );
         Traverser traverser = traverse( db.traversalDescription(), startNodes, uniqueness, bfs );
         return traverser.stream()
