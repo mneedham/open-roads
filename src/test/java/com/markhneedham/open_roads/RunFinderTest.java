@@ -1,5 +1,8 @@
 package com.markhneedham.open_roads;
 
+import java.util.Comparator;
+import java.util.PriorityQueue;
+
 import org.junit.Rule;
 import org.junit.Test;
 
@@ -9,6 +12,7 @@ import org.neo4j.driver.v1.GraphDatabase;
 import org.neo4j.driver.v1.Session;
 import org.neo4j.driver.v1.StatementResult;
 import org.neo4j.driver.v1.Value;
+import org.neo4j.graphalgo.impl.util.PriorityMap;
 import org.neo4j.harness.junit.Neo4jRule;
 
 import static junit.framework.TestCase.assertTrue;
@@ -44,7 +48,7 @@ public class RunFinderTest
                 );
 
                 String query = "match (r1:Road) WHERE r1.latitude = {lat} AND r1.longitude = {long}\n" +
-                        "call roads.findRoute(r1, 20)\n" +
+                        "call roads.findRoute(r1, 50)\n" +
                         "yield path as pp\n" +
                         "return pp";
                 Value params = parameters( "lat", 51.357397146246264, "long", -0.20153965352074504 );
@@ -58,5 +62,22 @@ public class RunFinderTest
             // When I use the index procedure to index a node
 
         }
+    }
+
+    @Test
+    public void should() throws Exception
+    {
+        // given
+        PriorityQueue<Integer> queue = new PriorityQueue<>( 11, Integer::compareTo );
+
+        queue.add( 3 );
+        queue.add( 4 );
+        queue.add( 5 );
+        queue.add( 2 );
+
+        // when
+        System.out.println(queue.poll());
+
+        // then
     }
 }

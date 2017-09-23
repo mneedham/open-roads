@@ -1,0 +1,13 @@
+= Open Roads Exploration
+
+Expander - which types of relationships to follow?
+Evaluator - what's the criteria for stopping / including / excluding paths in the result set?
+Selector - which way do we go next?
+
+When we come into the `BestFirstSelector` we're deciding which of the relationships we should follow next.
+
+* In the Dijkstra algorithm that's based on the expected cost of going to that node
+
+
+How does that get called by other parts of the code?
+
