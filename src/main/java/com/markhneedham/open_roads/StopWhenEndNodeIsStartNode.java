@@ -48,38 +48,38 @@ public class StopWhenEndNodeIsStartNode implements PathEvaluator<Double>
         {
             return Evaluation.EXCLUDE_AND_CONTINUE;
         }
-
-        if ( path.endNode().equals( startPoint ) )
-        {
-            return Evaluation.INCLUDE_AND_PRUNE;
-        }
-        else
-        {
-            return Evaluation.EXCLUDE_AND_CONTINUE;
-        }
-
-//        if ( state.getState() > (minimumLength + (minimumLength * 0.1)) )
+//
+//        if ( path.endNode().equals( startPoint ) )
 //        {
-//            if ( path.endNode().equals( startPoint ) )
-//            {
-//                return Evaluation.INCLUDE_AND_PRUNE;
-//            }
-//            else
-//            {
-//                return Evaluation.EXCLUDE_AND_PRUNE;
-//            }
+//            return Evaluation.INCLUDE_AND_PRUNE;
 //        }
 //        else
 //        {
-//            if ( path.endNode().equals( startPoint ) )
-//            {
-//                return Evaluation.INCLUDE_AND_PRUNE;
-//            }
-//            else
-//            {
-//                return Evaluation.EXCLUDE_AND_CONTINUE;
-//            }
+//            return Evaluation.EXCLUDE_AND_CONTINUE;
 //        }
+
+        if ( calculateDistance(distanceEvaluator, path.relationships()) > (minimumLength + (minimumLength * 0.1)) )
+        {
+            if ( path.endNode().equals( startPoint ) )
+            {
+                return Evaluation.INCLUDE_AND_PRUNE;
+            }
+            else
+            {
+                return Evaluation.EXCLUDE_AND_PRUNE;
+            }
+        }
+        else
+        {
+            if ( path.endNode().equals( startPoint ) )
+            {
+                return Evaluation.INCLUDE_AND_PRUNE;
+            }
+            else
+            {
+                return Evaluation.EXCLUDE_AND_CONTINUE;
+            }
+        }
     }
 
     @Override
@@ -89,14 +89,37 @@ public class StopWhenEndNodeIsStartNode implements PathEvaluator<Double>
         {
             return Evaluation.EXCLUDE_AND_CONTINUE;
         }
+//
+//        if ( path.endNode().equals( startPoint ) )
+//        {
+//            return Evaluation.INCLUDE_AND_PRUNE;
+//        }
+//        else
+//        {
+//            return Evaluation.EXCLUDE_AND_CONTINUE;
+//        }
 
-        if ( path.endNode().equals( startPoint ) )
+        if ( calculateDistance(distanceEvaluator, path.relationships()) > (minimumLength + (minimumLength * 0.1)) )
         {
-            return Evaluation.INCLUDE_AND_PRUNE;
+            if ( path.endNode().equals( startPoint ) )
+            {
+                return Evaluation.INCLUDE_AND_PRUNE;
+            }
+            else
+            {
+                return Evaluation.EXCLUDE_AND_PRUNE;
+            }
         }
         else
         {
-            return Evaluation.EXCLUDE_AND_CONTINUE;
+            if ( path.endNode().equals( startPoint ) )
+            {
+                return Evaluation.INCLUDE_AND_PRUNE;
+            }
+            else
+            {
+                return Evaluation.EXCLUDE_AND_CONTINUE;
+            }
         }
     }
 
