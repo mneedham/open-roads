@@ -59,7 +59,7 @@ public class RunFinderTest
                 System.out.println( "result.peek() = " + result.peek() );
             }
 
-            // When I use the index procedure to index a node
+            // Change the evaluator to filter out paths once they've gone beyond the distance and aren't anywhere near the start node
 
         }
     }
