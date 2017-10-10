@@ -2,6 +2,9 @@ package com.markhneedham.open_roads;
 
 import java.util.Comparator;
 import java.util.PriorityQueue;
+import java.util.function.Supplier;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import org.junit.Rule;
 import org.junit.Test;
@@ -14,6 +17,7 @@ import org.neo4j.driver.v1.StatementResult;
 import org.neo4j.driver.v1.Value;
 import org.neo4j.graphalgo.impl.util.PriorityMap;
 import org.neo4j.harness.junit.Neo4jRule;
+import org.neo4j.helpers.collection.Pair;
 
 import static junit.framework.TestCase.assertTrue;
 import static org.hamcrest.CoreMatchers.equalTo;

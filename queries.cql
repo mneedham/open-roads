@@ -2,6 +2,8 @@
 :param long: -0.20153965352074504
 :param latMetres: 3000
 :param longMetres: 100
+:param latVariability: 100
+:param longVariability: 200
 
 match (r:Road)
 where {lat} - ({latMetres} * 0.0000089) <  r.latitude < {lat} + ({latMetres} * 0.0000089) AND
