@@ -57,6 +57,59 @@ public class RunFinder
     @Context
     public GraphDatabaseService db;
 
+    public static class Hit
+    {
+        public Path startToMiddle1Path;
+        public Path middle1ToMiddle2Path;
+        public Path middle2ToStartPath;
+
+        public Hit( Path startToMiddle1Path, Path middle1ToMiddle2Path, Path middle2ToStartPath )
+        {
+            this.startToMiddle1Path = startToMiddle1Path;
+            this.middle1ToMiddle2Path = middle1ToMiddle2Path;
+            this.middle2ToStartPath = middle2ToStartPath;
+        }
+    }
+
+    @Procedure(value = "roads.findMeARoute")
+    public Stream<Hit> findMeARoute(
+            @Name("start") Node start,
+            @Name("middle1") Node middle1,
+            @Name("middle2") Node middle2
+
+    )
+    {
+        System.out.println( "start = " + start + ", middle1 = " + middle1 + ", middle2 = " + middle2 );
+
+        List<Relationship> relationshipsSeenSoFar = new ArrayList<>();
+
+        StandardExpander expander = new OrderedByTypeExpander().add( RelationshipType.withName( "CONNECTS" ), Direction.BOTH );
+        PathFinder<Path> shortestPathFinder = GraphAlgoFactory.shortestPath( expander, 250 );
+        // pass in a predicate which filters based on the result of the path from the previous path finders
+        ShortestPath shortestUniquePathFinder = new ShortestPath( Integer.MAX_VALUE, expander, path -> {
+            return StreamSupport.stream( path.relationships().spliterator(), false ).noneMatch( relationshipsSeenSoFar::contains );
+        });
+
+        Path startToMiddle1Path = shortestPathFinder.findSinglePath( start, middle1 );
+
+        for ( Relationship relationship : startToMiddle1Path.relationships() )
+        {
+            relationshipsSeenSoFar.add( relationship );
+        }
+
+        Path middle1ToMiddle2Path = shortestUniquePathFinder.findSinglePath( middle1, middle2 );
+
+        for ( Relationship relationship : middle1ToMiddle2Path.relationships() )
+        {
+            relationshipsSeenSoFar.add( relationship );
+        }
+
+        Path middle2ToStartPath = shortestUniquePathFinder.findSinglePath( middle2, start );
+
+        return Stream.of( new Hit(startToMiddle1Path, middle1ToMiddle2Path, middle2ToStartPath) );
+
+    }
+
     @Procedure(value = "roads.findRoute")
     public Stream<SearchHit> findRoute(
             @Name("startPoint") Node startPoint,
@@ -69,17 +122,16 @@ public class RunFinder
         DoubleEvaluator distanceEvaluator = new DoubleEvaluator( "length" );
         Traverser traverser = traverse( db.traversalDescription(), startPoint, uniqueness, bfs, minimumLength,
                 distanceEvaluator, pathsAnalysed );
-        return traverser.stream()
-                .filter( path ->
-                {
-                    Double totalDistance = calculateDistance( distanceEvaluator, path.relationships() );
-                    return totalDistance > minimumLength;
-                } )
-                .map( path ->
-                {
-                    Double totalDistance = calculateDistance( distanceEvaluator, path.relationships() );
-                    return new SearchHit( new WeightedPathImpl( totalDistance, path ), pathsAnalysed.get() );
-                } );
+
+        return traverser.stream().filter( path ->
+        {
+            Double totalDistance = calculateDistance( distanceEvaluator, path.relationships() );
+            return totalDistance > minimumLength;
+        } ).map( path ->
+        {
+            Double totalDistance = calculateDistance( distanceEvaluator, path.relationships() );
+            return new SearchHit( new WeightedPathImpl( totalDistance, path ), pathsAnalysed.get() );
+        } );
     }
 
     static Double calculateDistance( DoubleEvaluator doubleEvaluator, Iterable<Relationship> relationships )

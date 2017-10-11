@@ -6,10 +6,10 @@ from neo4j.v1 import GraphDatabase
 
 app = flask.Flask('my app')
 
-lat = 51.357397146246264
-long = -0.20153965352074504
+lat = 51.357874010145395
+long = -0.198045110923591
 
-lat_metres = -1500
+lat_metres = -1000
 long_metres = -100
 
 lat_1 = lat + (lat_metres * 0.0000089)
@@ -50,6 +50,7 @@ query = """\
 MATCH (middle1:Road) 
 WHERE {lat} + (({latMetres}-{latVariability}) * 0.0000089) < middle1.latitude < {lat} + (({latMetres}+{latVariability}) * 0.0000089) 
 AND   {long} + (({longMetres}-{longVariability}) * 0.0000089 / cos({lat} * 0.018))   < middle1.longitude <  {long} + (({longMetres}+{longVariability}) * 0.0000089 / cos({lat} * 0.018))
+AND SIZE((middle1)-[:CONNECTS]-()) > 1
 
 MATCH (middle2:Road)
 WHERE {lat} + (({latMetres}-{latVariability}) * 0.0000089) + ((({latMetres}-{latVariability})/3) * 0.0000089)   
@@ -58,6 +59,7 @@ WHERE {lat} + (({latMetres}-{latVariability}) * 0.0000089) + ((({latMetres}-{lat
 AND   {long} + (({longMetres}-{longVariability}) * 0.0000089 / cos({lat} * 0.018)) + ((({longMetres}-{longVariability})*3) * 0.0000089 / cos({lat} + (({latMetres}+100) * 0.0000089) * 0.018))  
       < middle2.longitude <  
       {long} + (({longMetres}+{longVariability}) * 0.0000089 / cos({lat} * 0.018)) + ((({longMetres}+{longVariability})*3) * 0.0000089 / cos({lat} + (({latMetres}+100) * 0.0000089) * 0.018))
+AND SIZE((middle2)-[:CONNECTS]-()) > 1
 
 WITH middle1, middle2  WHERE middle1 <> middle2
 MATCH (start:Road {latitude: {lat}, longitude: {long}})
