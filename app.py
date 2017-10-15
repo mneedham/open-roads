@@ -1,3 +1,4 @@
+from __future__ import division
 from flask import Flask, render_template, request
 from neo4j.v1 import GraphDatabase
 
@@ -5,71 +6,83 @@ import csv
 import json
 
 
-# loop_query = """\
-# match (r1:Road) WHERE r1.latitude = 51.357397146246264 AND r1.longitude = -0.20153965352074504
-# call roads.findRoute(r1, {distance}, {bfs}) YIELD path AS pp
-# with pp LIMIT 1
-# unwind nodes(pp) AS road
-# RETURN road.latitude as lat, road.longitude as long
-# """
-
-# loop_query = """\
-# match (r1:Road) WHERE r1.latitude = 51.357397146246264 AND r1.longitude = -0.20153965352074504
-# MATCH (r2:Road) WHERE r2.latitude = 51.36272835382321 AND r2.longitude = -0.16836400394638354
-# MATCH path = shortestpath((r1)-[*]-(r2))
-# unwind nodes(path) as road
-# return road.latitude AS lat, road.longitude AS long
-# """
-
 loop_query = """\
-match (r:Road)
-where {lat} - ({latMetres} * 0.0000089) <  r.latitude < {lat} + ({latMetres} * 0.0000089) AND
-      {long} - ({longMetres} * 0.0000089) / cos({lat} * 0.018) <  r.longitude < {long} + ({longMetres} * 0.0000089) / cos({lat} * 0.018)
-WITH  r
-ORDER BY rand()
-LIMIT 2
-WITH collect(r) AS roads
+MATCH (middle1:Road) 
+WHERE {lat} + (({latMetres}-{latVariability}) * 0.0000089) < middle1.latitude < {lat} + (({latMetres}+{latVariability}) * 0.0000089) 
+AND   {long} + (({longMetres}-{longVariability}) * 0.0000089 / cos({lat} * 0.018))   < middle1.longitude <  {long} + (({longMetres}+{longVariability}) * 0.0000089 / cos({lat} * 0.018))
+AND SIZE((middle1)-[:CONNECTS]-()) > 1
+
+MATCH (middle2:Road)
+WHERE {lat} + (({latMetres}-{latVariability}) * 0.0000089) + ((({latMetres}-{latVariability})/3) * 0.0000089)   
+      < middle2.latitude < 
+      {lat} + (({latMetres}+{latVariability}) * 0.0000089) + ((({latMetres}+{latVariability})/3) * 0.0000089) 
+AND   {long} + (({longMetres}-{longVariability}) * 0.0000089 / cos({lat} * 0.018)) + ((({longMetres}-{longVariability})*3) * 0.0000089 / cos({lat} + (({latMetres}+100) * 0.0000089) * 0.018))  
+      < middle2.longitude <  
+      {long} + (({longMetres}+{longVariability}) * 0.0000089 / cos({lat} * 0.018)) + ((({longMetres}+{longVariability})*3) * 0.0000089 / cos({lat} + (({latMetres}+100) * 0.0000089) * 0.018))
+AND SIZE((middle2)-[:CONNECTS]-()) > 1
+
+WITH middle1, middle2  WHERE middle1 <> middle2
 MATCH (start:Road {latitude: {lat}, longitude: {long}})
-MATCH (middle1:Road {latitude: roads[0].latitude, longitude: roads[0].longitude})
-MATCH (middle2:Road {latitude: roads[1].latitude, longitude: roads[1].longitude})
-MATCH startToMiddle1Path = shortestpath((start)-[:CONNECTS*]-(middle1))
-MATCH middle1ToMiddle2Path = shortestpath((middle1)-[:CONNECTS*]-(middle2))
-MATCH middle2ToStartPath = shortestpath((middle2)-[:CONNECTS*]-(start))
+WITH start, middle1, middle2 
+ORDER BY rand()
+CALL roads.findMeARoute2(start, middle1, middle2)
+YIELD path
 WITH start, middle1, middle2,
-     nodes(startToMiddle1Path) + nodes(middle1ToMiddle2Path) + nodes(middle2ToStartPath) as roads,
-     relationships(startToMiddle1Path) + relationships(middle1ToMiddle2Path) + relationships(middle2ToStartPath) as connections
-return start {.latitude, .longitude}, middle1 {.latitude, .longitude}, middle2 {.latitude, .longitude}, roads, reduce(acc=0, connection in connections | acc + connection.length ) AS distance
+     nodes(path) as roads,
+     relationships(path) as connections
+return start {.latitude, .longitude}, middle1 {.latitude, .longitude}, middle2 {.latitude, .longitude}, roads,  reduce(acc=0, connection in connections | acc + connection.length ) AS distance
+LIMIT 1
 """
 
 app = Flask(__name__)
 driver = GraphDatabase.driver("bolt://localhost:7687")
 
+
 @app.route('/')
 def my_runs():
-    distance = request.args.get('distance')
-    distance = int(distance) if distance else 5000
-    bfs = request.args.get('bfs')
-    bfs = bool(bfs)
+    estimated_distance = request.args.get('estimatedDistance')
+    estimated_distance = int(estimated_distance) if estimated_distance else 5000
+
+    direction = request.args.get('direction')
+    adjustment = 1 if direction == "north" else -1
+
+    lat_metres = (estimated_distance / 5) * adjustment
+    lat_variability = abs(lat_metres / 10)
 
     runs = []
 
     with driver.session() as session:
         result = session.run(loop_query, {
-            "distance": distance,
-            "bfs": bfs,
             "lat": 51.357397146246264,
             "long": -0.20153965352074504,
-            "latMetres": 3000,
-            "longMetres": 100
+
+            "latMetres": lat_metres,
+            "latVariability": lat_variability,
+
+            "longMetres": 100,
+            "longVariability": 200,
+
         })
+        distance = -1
         for row in result:
             print("Start: {start}, Middle: {middle1}, Middle: {middle2}, Distance: {distance}"
-                    .format(start=row["start"], middle1=row["middle1"], middle2=row["middle2"], distance=row["distance"]))
-            for sub_row in row["roads"]:
-                runs.append({"latitude": sub_row["latitude"], "longitude": sub_row["longitude"]})
+                  .format(start=row["start"], middle1=row["middle1"], middle2=row["middle2"], distance=row["distance"]))
+            distance = row["distance"]
+            if distance:
+                for sub_row in row["roads"]:
+                    runs.append({"latitude": sub_row["latitude"], "longitude": sub_row["longitude"]})
 
+    lats = [run["latitude"] for run in runs]
+    longs = [run["longitude"] for run in runs]
+    lat_centre = sum(lats) / len(lats) if len(lats) > 0 else 0
+    long_centre = sum(longs) / len(lats) if len(lats) > 0 else 0
 
-    return render_template("leaflet.html", runs = json.dumps(runs))
+    return render_template("halfPageMap.html",
+                           runs = json.dumps(runs),
+                           distance = distance,
+                           lat_centre = lat_centre,
+                           long_centre = long_centre
+                           )
 
 if __name__ == "__main__":
     app.run(port = 5001)

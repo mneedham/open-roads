@@ -1,56 +1,32 @@
 package com.markhneedham.open_roads;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
-import org.neo4j.cypher.internal.frontend.v2_3.ast.functions.Labels;
-import org.neo4j.graphalgo.CommonEvaluators;
-import org.neo4j.graphalgo.EstimateEvaluator;
 import org.neo4j.graphalgo.GraphAlgoFactory;
 import org.neo4j.graphalgo.PathFinder;
-import org.neo4j.graphalgo.WeightedPath;
 import org.neo4j.graphalgo.impl.path.ShortestPath;
-import org.neo4j.graphalgo.impl.util.DoubleEvaluator;
-import org.neo4j.graphalgo.impl.util.PriorityMap;
-import org.neo4j.graphalgo.impl.util.WeightedPathImpl;
 import org.neo4j.graphdb.Direction;
 import org.neo4j.graphdb.GraphDatabaseService;
-import org.neo4j.graphdb.Label;
 import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.Path;
 import org.neo4j.graphdb.PathExpander;
 import org.neo4j.graphdb.PropertyContainer;
 import org.neo4j.graphdb.Relationship;
 import org.neo4j.graphdb.RelationshipType;
-import org.neo4j.graphdb.Transaction;
 import org.neo4j.graphdb.impl.OrderedByTypeExpander;
 import org.neo4j.graphdb.impl.StandardExpander;
-import org.neo4j.graphdb.traversal.BranchSelector;
-import org.neo4j.graphdb.traversal.TraversalBranch;
-import org.neo4j.graphdb.traversal.TraversalContext;
-import org.neo4j.graphdb.traversal.TraversalDescription;
-import org.neo4j.graphdb.traversal.Traverser;
-import org.neo4j.graphdb.traversal.Uniqueness;
-import org.neo4j.helpers.collection.Iterables;
-import org.neo4j.kernel.api.KernelTransaction;
-import org.neo4j.kernel.impl.coreapi.PlaceboTransaction;
-import org.neo4j.kernel.impl.coreapi.TopLevelTransaction;
-import org.neo4j.kernel.impl.factory.GraphDatabaseFacade;
-import org.neo4j.kernel.impl.util.NoneStrictMath;
 import org.neo4j.procedure.Context;
 import org.neo4j.procedure.Name;
 import org.neo4j.procedure.Procedure;
 
-import static java.util.stream.Collectors.toList;
-
-import static org.neo4j.graphalgo.impl.util.BestFirstSelectorFactory.CONVERTER;
-import static org.neo4j.kernel.api.security.SecurityContext.AUTH_DISABLED;
+import static java.util.stream.StreamSupport.stream;
 
 public class RunFinder
 {
@@ -71,6 +47,83 @@ public class RunFinder
         }
     }
 
+    public static class Hit2
+    {
+        public Path path;
+
+        public Hit2( Path... paths )
+        {
+            path = new CombinedPath( paths );
+        }
+    }
+
+    @Procedure(value = "roads.findMeARoute2")
+    public Stream<Hit2> findMeARoute2(
+            @Name("start") Node start,
+            @Name("middle1") Node middle1,
+            @Name("middle2") Node middle2
+
+    )
+    {
+        System.out.println( "start = " + start + ", middle1 = " + middle1 + ", middle2 = " + middle2 );
+
+        /*
+        Cul de sacs break this at the moment
+        match (start)   where id(start)   = 184709
+        match (middle1) where id(middle1) = 184763
+        match (middle2) where id(middle2) = 184846
+         */
+
+        List<Relationship> relationshipsSeenSoFar = new ArrayList<>();
+
+        StandardExpander orderedExpander = new OrderedByTypeExpander().add( RelationshipType.withName( "CONNECTS" ), Direction.BOTH );
+
+        MyStandardExpander expander = new MyStandardExpander(orderedExpander, Clock.systemUTC());
+
+        PathFinder<Path> shortestPathFinder = GraphAlgoFactory.shortestPath( expander, 250 );
+        // pass in a predicate which filters based on the result of the path from the previous path finders
+        ShortestPath shortestUniquePathFinder = new ShortestPath( Integer.MAX_VALUE, expander, path -> {
+            return stream( path.relationships().spliterator(), false ).noneMatch( relationshipsSeenSoFar::contains );
+        });
+
+        Path startToMiddle1Path = shortestPathFinder.findSinglePath( start, middle1 );
+
+        if ( startToMiddle1Path == null )
+        {
+            System.out.println( "paths expanded = " + expander.pathsExpanded() );
+            return Stream.empty(  );
+        }
+
+        for ( Relationship relationship : startToMiddle1Path.relationships() )
+        {
+            relationshipsSeenSoFar.add( relationship );
+        }
+
+        Path middle1ToMiddle2Path = shortestUniquePathFinder.findSinglePath( middle1, middle2 );
+
+        if ( middle1ToMiddle2Path == null )
+        {
+            System.out.println( "paths expanded = " + expander.pathsExpanded() );
+            return Stream.empty(  );
+        }
+
+            for ( Relationship relationship : middle1ToMiddle2Path.relationships() )
+            {
+                relationshipsSeenSoFar.add( relationship );
+            }
+
+        Path middle2ToStartPath = shortestUniquePathFinder.findSinglePath( middle2, start );
+
+        if ( middle2ToStartPath == null )
+        {
+            System.out.println( "paths expanded = " + expander.pathsExpanded() );
+            return Stream.empty(  );
+        }
+
+        System.out.println( "paths expanded = " + expander.pathsExpanded() );
+        return Stream.of( new Hit2(startToMiddle1Path, middle1ToMiddle2Path, middle2ToStartPath) );
+    }
+
     @Procedure(value = "roads.findMeARoute")
     public Stream<Hit> findMeARoute(
             @Name("start") Node start,
@@ -81,13 +134,22 @@ public class RunFinder
     {
         System.out.println( "start = " + start + ", middle1 = " + middle1 + ", middle2 = " + middle2 );
 
+        /*
+        Cul de sacs break this at the moment
+        match (start)   where id(start)   = 184709
+        match (middle1) where id(middle1) = 184763
+        match (middle2) where id(middle2) = 184846
+         */
+
         List<Relationship> relationshipsSeenSoFar = new ArrayList<>();
 
         StandardExpander expander = new OrderedByTypeExpander().add( RelationshipType.withName( "CONNECTS" ), Direction.BOTH );
+
+
         PathFinder<Path> shortestPathFinder = GraphAlgoFactory.shortestPath( expander, 250 );
         // pass in a predicate which filters based on the result of the path from the previous path finders
         ShortestPath shortestUniquePathFinder = new ShortestPath( Integer.MAX_VALUE, expander, path -> {
-            return StreamSupport.stream( path.relationships().spliterator(), false ).noneMatch( relationshipsSeenSoFar::contains );
+            return stream( path.relationships().spliterator(), false ).noneMatch( relationshipsSeenSoFar::contains );
         });
 
         Path startToMiddle1Path = shortestPathFinder.findSinglePath( start, middle1 );
@@ -99,14 +161,94 @@ public class RunFinder
 
         Path middle1ToMiddle2Path = shortestUniquePathFinder.findSinglePath( middle1, middle2 );
 
-        for ( Relationship relationship : middle1ToMiddle2Path.relationships() )
+        if ( middle1ToMiddle2Path != null )
         {
-            relationshipsSeenSoFar.add( relationship );
+            for ( Relationship relationship : middle1ToMiddle2Path.relationships() )
+            {
+                relationshipsSeenSoFar.add( relationship );
+            }
         }
 
         Path middle2ToStartPath = shortestUniquePathFinder.findSinglePath( middle2, start );
 
         return Stream.of( new Hit(startToMiddle1Path, middle1ToMiddle2Path, middle2ToStartPath) );
-
     }
+
+    static class CombinedPath implements  Path {
+
+        private final Path[] paths;
+
+        CombinedPath( Path... paths)
+        {
+            this.paths = paths;
+        }
+
+        @Override
+        public Node startNode()
+        {
+            return paths[0].startNode();
+        }
+
+        @Override
+        public Node endNode()
+        {
+            return this.paths[paths.length - 1].endNode();
+        }
+
+        @Override
+        public Relationship lastRelationship()
+        {
+            return this.paths[paths.length - 1].lastRelationship();
+        }
+
+        @Override
+        public Iterable<Relationship> relationships()
+        {
+            return Arrays.stream( paths )
+                    .flatMap(p -> stream(p.relationships().spliterator(), false))
+                    .collect( Collectors.toList() );
+        }
+
+        @Override
+        public Iterable<Relationship> reverseRelationships()
+        {
+            return Arrays.stream( paths )
+                    .flatMap(p -> stream(p.relationships().spliterator(), false))
+                    .sorted(Collections.reverseOrder())
+                    .collect( Collectors.toList() );
+        }
+
+        @Override
+        public Iterable<Node> nodes()
+        {
+            return Arrays.stream( paths )
+                    .flatMap(p -> stream(p.nodes().spliterator(), false))
+                    .collect( Collectors.toList() );
+        }
+
+        @Override
+        public Iterable<Node> reverseNodes()
+        {
+            return Arrays.stream( paths )
+                    .flatMap(p -> stream(p.nodes().spliterator(), false))
+                    .sorted(Collections.reverseOrder())
+                    .collect( Collectors.toList() );
+        }
+
+        @Override
+        public int length()
+        {
+            return Arrays.stream( paths )
+                    .map( Path::length )
+                    .reduce( ( length, acc ) -> acc + length )
+                    .orElse( 0 );
+        }
+
+        @Override
+        public Iterator<PropertyContainer> iterator()
+        {
+            throw new UnsupportedOperationException();
+        }
+    }
+
 }

@@ -1,0 +1,120 @@
+<html>
+  <head>
+    <title>Suggested route</title>
+  </head>
+
+  <body>
+  <script src="http://cdn.leafletjs.com/leaflet-0.7/leaflet.js"></script>
+  <script type="text/javascript" src="https://rawgit.com/jieter/Leaflet.encoded/master/Polyline.encoded.js"></script>
+  <link rel="stylesheet" href="http://cdn.leafletjs.com/leaflet-0.7/leaflet.css"/>
+
+
+  <div id="main-wrap">
+    <div id="sidebar">
+      <form action="/">
+        <fieldset>
+          <legend>Run details</legend>
+
+          <p>
+            <label for="direction">Direction</label>
+            <select id="direction" name="direction">
+              <option value="north">North</option>
+              <option value="south">South</option>
+            </select>
+          </p>
+
+          <p>
+            <label for="estimatedDistance">Estimated distance</label>
+            <input type="text" name="estimatedDistance" id="estimatedDistance">
+          </p>
+
+        </fieldset>
+        <p>
+          <input type="submit" value="Submit">
+        </p>
+      </form>
+      <hr/>
+      <p>
+      <fieldset>
+        <legend>Suggested Route</legend>
+        Distance: {{distance}} ({{distance / 1.6 / 1000}})
+      </fieldset>
+      </p>
+    </div>
+    <div id="content-wrap">
+      <div id="map" style="width: 100%; height: 100%"></div>
+
+    </div>
+  </div>
+
+    <script>
+    var map = L.map('map').setView([{{lat_centre}}, {{long_centre}}], 14);
+    L.tileLayer(
+        'http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 18,
+        }).addTo(map);
+
+    var rawPoints = {{ runs|safe }};
+
+    var coordinates = [];
+
+    for (let rawPoint of rawPoints) {
+      coordinates.push(new L.LatLng(rawPoint["latitude"], rawPoint["longitude"]))
+    }
+
+      L.polyline(
+          coordinates,
+          {
+              color: 'blue',
+              weight: 3,
+              opacity: .7,
+              lineJoin: 'round'
+          }
+      ).addTo(map);
+
+    </script>
+
+  <style>
+    /* sizes */
+    #main-wrap > div { min-height: 450px; }
+
+    body {
+      font-family: Calibri,serif;
+    }
+
+    #header,
+    #footer {
+      min-height: 40px;
+    }
+
+    /* layout */
+    #main-wrap {
+      /* overflow to handle inner floating block */
+      overflow: hidden;
+    }
+
+    #sidebar {
+      float: left;
+      width: 30%;
+    }
+
+    #content-wrap {
+      float: right;
+      width: 70%;
+    }
+
+    fieldset {
+      border: 1px solid #efefef;
+      border-radius: 8px;
+      padding-top: 10px;
+      margin-right: 5px;
+    }
+    legend {
+      padding: 2px 4px;
+      background: #fff;
+      /* For better legibility against the box-shadow */
+    }
+
+  </style>
+  </body>
+</html>
