@@ -1,6 +1,7 @@
 <html>
   <head>
     <title>Suggested route</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
   </head>
 
   <body>
@@ -115,6 +116,15 @@
       padding: 2px 4px;
       background: #fff;
       /* For better legibility against the box-shadow */
+    }
+
+    @media (max-width:800px) {
+      #sidebar, #content-wrap {
+        width:100%; /*The width is 100%, when the viewport is 800px or smaller*/
+        height: 50%
+      }
+
+      #main-wrap > div { min-height: 50px; }
     }
 
   </style>
