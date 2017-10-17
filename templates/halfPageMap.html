@@ -19,7 +19,7 @@
             <label for="direction">Direction</label>
             <select id="direction" name="direction">
               <option value="north" {% if direction == 'north' %} selected {% endif %} >North</option>
-              <option value="south">South</option>
+              <option value="south" {% if direction == 'south' %} selected {% endif %}>South</option>
             </select>
           </p>
 
