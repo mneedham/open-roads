@@ -11,28 +11,29 @@
 
   <div id="main-wrap">
     <div id="sidebar">
-      <form action="/">
+      <form action="/search">
         <fieldset>
           <legend>Run details</legend>
 
           <p>
             <label for="direction">Direction</label>
             <select id="direction" name="direction">
-              <option value="north">North</option>
+              <option value="north" {% if direction == 'north' %} selected {% endif %} >North</option>
               <option value="south">South</option>
             </select>
           </p>
 
           <p>
             <label for="estimatedDistance">Estimated distance</label>
-            <input type="text" name="estimatedDistance" id="estimatedDistance">
+            <input type="text" name="estimatedDistance" id="estimatedDistance" value="{{estimated_distance}}">
           </p>
 
         </fieldset>
         <p>
-          <input type="submit" value="Submit">
+          <input type="submit" value="Generate route">
         </p>
       </form>
+      {% if distance %}
       <hr/>
       <p>
       <fieldset>
@@ -40,6 +41,7 @@
         Distance: {{distance}} ({{distance / 1.6 / 1000}})
       </fieldset>
       </p>
+      {% endif %}
     </div>
     <div id="content-wrap">
       <div id="map" style="width: 100%; height: 100%"></div>

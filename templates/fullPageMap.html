@@ -1,0 +1,41 @@
+<html>
+  <head>
+    <title>Suggested route</title>
+  </head>
+
+  <body>
+    <script src="http://cdn.leafletjs.com/leaflet-0.7/leaflet.js"></script>
+    <script type="text/javascript" src="https://rawgit.com/jieter/Leaflet.encoded/master/Polyline.encoded.js"></script>
+    <link rel="stylesheet" href="http://cdn.leafletjs.com/leaflet-0.7/leaflet.css" />
+
+
+    <div id="map" style="width: 100%; height: 100%"></div>
+
+    <script>
+    var map = L.map('map').setView([51.3573971462, -0.201539653521], 14);
+    L.tileLayer(
+        'http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 18,
+        }).addTo(map);
+
+    var rawPoints = {{ runs|safe }};
+
+    var coordinates = [];
+
+    for (let rawPoint of rawPoints) {
+      coordinates.push(new L.LatLng(rawPoint["latitude"], rawPoint["longitude"]))
+    }
+
+      L.polyline(
+          coordinates,
+          {
+              color: 'blue',
+              weight: 3,
+              opacity: .7,
+              lineJoin: 'round'
+          }
+      ).addTo(map);
+
+    </script>
+  </body>
+</html>

@@ -4,6 +4,7 @@ from neo4j.v1 import GraphDatabase
 
 import csv
 import json
+import time
 
 
 loop_query = """\
@@ -37,9 +38,8 @@ LIMIT 1
 app = Flask(__name__)
 driver = GraphDatabase.driver("bolt://localhost:7687")
 
-
-@app.route('/')
-def my_runs():
+@app.route('/search')
+def search():
     estimated_distance = request.args.get('estimatedDistance')
     estimated_distance = int(estimated_distance) if estimated_distance else 5000
 
@@ -52,6 +52,7 @@ def my_runs():
     runs = []
 
     with driver.session() as session:
+        start = int(round(time.time() * 1000))
         result = session.run(loop_query, {
             "lat": 51.357397146246264,
             "long": -0.20153965352074504,
@@ -63,10 +64,13 @@ def my_runs():
             "longVariability": 200,
 
         })
+
         distance = -1
         for row in result:
-            print("Start: {start}, Middle: {middle1}, Middle: {middle2}, Distance: {distance}"
-                  .format(start=row["start"], middle1=row["middle1"], middle2=row["middle2"], distance=row["distance"]))
+            end = int(round(time.time() * 1000))
+
+            print("Start: {start}, Middle: {middle1}, Middle: {middle2}, Distance: {distance}, Time: {time}"
+                  .format(start=row["start"], middle1=row["middle1"], middle2=row["middle2"], distance=row["distance"], time = (end - start)))
             distance = row["distance"]
             if distance:
                 for sub_row in row["roads"]:
@@ -78,10 +82,23 @@ def my_runs():
     long_centre = sum(longs) / len(lats) if len(lats) > 0 else 0
 
     return render_template("halfPageMap.html",
+                           direction = direction,
+                           estimated_distance = estimated_distance,
                            runs = json.dumps(runs),
                            distance = distance,
                            lat_centre = lat_centre,
                            long_centre = long_centre
+                           )
+
+
+@app.route('/')
+def home():
+    return render_template("halfPageMap.html",
+                           direction = "north",
+                           estimated_distance = 5000,
+                           runs = json.dumps([]),
+                           lat_centre = 51.357397146246264,
+                           long_centre = -0.20153965352074504
                            )
 
 if __name__ == "__main__":
