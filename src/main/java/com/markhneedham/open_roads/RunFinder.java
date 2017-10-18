@@ -67,13 +67,6 @@ public class RunFinder
     {
         System.out.println( "start = " + start + ", middle1 = " + middle1 + ", middle2 = " + middle2 );
 
-        /*
-        Cul de sacs break this at the moment
-        match (start)   where id(start)   = 184709
-        match (middle1) where id(middle1) = 184763
-        match (middle2) where id(middle2) = 184846
-         */
-
         List<Relationship> relationshipsSeenSoFar = new ArrayList<>();
 
         StandardExpander orderedExpander = new OrderedByTypeExpander().add( RelationshipType.withName( "CONNECTS" ), Direction.BOTH );
