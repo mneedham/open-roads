@@ -39,7 +39,10 @@
       <p>
       <fieldset>
         <legend>Suggested Route</legend>
-        Distance: {{distance}} ({{distance / 1.6 / 1000}})
+        <p>Distance: {{distance}} ({{distance / 1.6 / 1000}})</p>
+        <p><a href="/routes/{{ route_id }}?type=gpx" download>
+          Download as GPX
+      </a></p>
       </fieldset>
       </p>
       {% endif %}

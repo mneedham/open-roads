@@ -2,46 +2,15 @@ from __future__ import division
 
 import json
 import time
+import os
 
 from flask import Flask, render_template, request, redirect, url_for
-from neo4j.v1 import GraphDatabase
+from neo4j.v1 import GraphDatabase, basic_auth
 
-generate_route_query = """\
-MATCH (middle1:Road) 
-WHERE {lat} + (({latMetres}-{latVariability}) * 0.0000089) < middle1.latitude < {lat} + (({latMetres}+{latVariability}) * 0.0000089) 
-AND   {long} + (({longMetres}-{longVariability}) * 0.0000089 / cos({lat} * 0.018))   < middle1.longitude <  {long} + (({longMetres}+{longVariability}) * 0.0000089 / cos({lat} * 0.018))
-AND SIZE((middle1)-[:CONNECTS]-()) > 1
+neo4j_host = os.getenv('NEO4J_HOST', "bolt://localhost:7687")
 
-MATCH (middle2:Road)
-WHERE {lat} + (({latMetres}-{latVariability}) * 0.0000089) + ((({latMetres}-{latVariability})/3) * 0.0000089)   
-      < middle2.latitude < 
-      {lat} + (({latMetres}+{latVariability}) * 0.0000089) + ((({latMetres}+{latVariability})/3) * 0.0000089) 
-AND   {long} + (({longMetres}-{longVariability}) * 0.0000089 / cos({lat} * 0.018)) + ((({longMetres}-{longVariability})*3) * 0.0000089 / cos({lat} + (({latMetres}+100) * 0.0000089) * 0.018))  
-      < middle2.longitude <  
-      {long} + (({longMetres}+{longVariability}) * 0.0000089 / cos({lat} * 0.018)) + ((({longMetres}+{longVariability})*3) * 0.0000089 / cos({lat} + (({latMetres}+100) * 0.0000089) * 0.018))
-AND SIZE((middle2)-[:CONNECTS]-()) > 1
-
-WITH middle1, middle2  WHERE middle1 <> middle2
-MATCH (start:Road {latitude: {lat}, longitude: {long}})
-WITH start, middle1, middle2 
-ORDER BY rand()
-CALL roads.findMeARoute2(start, middle1, middle2)
-YIELD path
-WITH start, middle1, middle2,
-     nodes(path) as roads,
-     relationships(path) as connections
-LIMIT 1
-MERGE (route:Route { id: apoc.create.uuid() })
-SET route.start = [start.latitude, start.longitude],
-    route.middle1 = [middle1.latitude, middle1.longitude],
-    route.middle2 = [middle2.latitude, middle2.longitude],
-    route.distance = reduce(acc=0, connection in connections | acc + connection.length ),
-    route.points = [road in roads | road.latitude + "," + road.longitude],
-    route.estimatedDistance = {estimatedDistance},
-    route.direction = {direction}
-
-return route.id AS routeId
-"""
+app = Flask(__name__)
+driver = GraphDatabase.driver(neo4j_host)
 
 show_route_query = """\
 match (r:Route {id: {id} })
@@ -54,12 +23,9 @@ RETURN {latitude: r.start[0], longitude: r.start[1] } AS start,
        r.estimatedDistance AS estimatedDistance
 """
 
-app = Flask(__name__)
-driver = GraphDatabase.driver("bolt://localhost:7687")
-
-
 @app.route('/routes/<route_id>')
 def lookup_route(route_id):
+    content_type = request.args.get("type", "")
     with driver.session() as session:
         distance = -1
         direction = "north"
@@ -84,15 +50,55 @@ def lookup_route(route_id):
         lat_centre = sum(lats) / len(lats) if len(lats) > 0 else 0
         long_centre = sum(longs) / len(lats) if len(lats) > 0 else 0
 
-        return render_template("halfPageMap.html",
+        if content_type == "gpx":
+            return render_template("gpx.xml", runs = runs)
+        else:
+            return render_template("halfPageMap.html",
                                direction=direction,
-                               estimated_distance = estimated_distance,
-                               runs = json.dumps(runs),
-                               distance = distance,
-                               lat_centre = lat_centre,
-                               long_centre = long_centre
+                               estimated_distance=estimated_distance,
+                               runs=json.dumps(runs),
+                               distance=distance,
+                               lat_centre=lat_centre,
+                               long_centre=long_centre,
+                               route_id=route_id
                                )
 
+generate_route_query = """\
+MATCH (middle1:Road)
+WHERE {lat} + (({latMetres}-{latVariability}) * 0.0000089) < middle1.latitude < {lat} + (({latMetres}+{latVariability}) * 0.0000089)
+AND   {long} + (({longMetres}-{longVariability}) * 0.0000089 / cos({lat} * 0.018))   < middle1.longitude <  {long} + (({longMetres}+{longVariability}) * 0.0000089 / cos({lat} * 0.018))
+AND SIZE((middle1)-[:CONNECTS]-()) > 1
+
+MATCH (middle2:Road)
+WHERE {lat} + (({latMetres}-{latVariability}) * 0.0000089) + ((({latMetres}-{latVariability})/3) * 0.0000089)
+      < middle2.latitude <
+      {lat} + (({latMetres}+{latVariability}) * 0.0000089) + ((({latMetres}+{latVariability})/3) * 0.0000089)
+AND   {long} + (({longMetres}-{longVariability}) * 0.0000089 / cos({lat} * 0.018)) + ((({longMetres}-{longVariability})*3) * 0.0000089 / cos({lat} + (({latMetres}+100) * 0.0000089) * 0.018))
+      < middle2.longitude <
+      {long} + (({longMetres}+{longVariability}) * 0.0000089 / cos({lat} * 0.018)) + ((({longMetres}+{longVariability})*3) * 0.0000089 / cos({lat} + (({latMetres}+100) * 0.0000089) * 0.018))
+AND SIZE((middle2)-[:CONNECTS]-()) > 1
+
+WITH middle1, middle2  WHERE middle1 <> middle2
+MATCH (start:Road {latitude: {lat}, longitude: {long}})
+WITH start, middle1, middle2
+ORDER BY rand()
+CALL roads.findMeARoute2(start, middle1, middle2)
+YIELD path
+WITH start, middle1, middle2,
+     nodes(path) as roads,
+     relationships(path) as connections
+LIMIT 1
+MERGE (route:Route { id: apoc.create.uuid() })
+SET route.start = [start.latitude, start.longitude],
+    route.middle1 = [middle1.latitude, middle1.longitude],
+    route.middle2 = [middle2.latitude, middle2.longitude],
+    route.distance = reduce(acc=0, connection in connections | acc + connection.length ),
+    route.points = [road in roads | road.latitude + "," + road.longitude],
+    route.estimatedDistance = {estimatedDistance},
+    route.direction = {direction}
+
+return route.id AS routeId
+"""
 
 @app.route('/routes', methods=['POST'])
 def routes():
@@ -138,5 +144,19 @@ def home():
                            long_centre = -0.20153965352074504
                            )
 
-if __name__ == "__main__":
-    app.run(port = 5001)
+get_routes_query = """\
+MATCH (r:Route)
+RETURN r
+"""
+
+@app.route("/routes")
+def get_routes():
+    with driver.session() as session:
+        runs =  [row["r"] for row in session.run(get_routes_query)]
+
+    return render_template("listRoutes.html",
+        runs = runs
+    )
+
+# if __name__ == "__main__":
+#     app.run(port = 5001)
