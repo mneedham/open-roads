@@ -3,6 +3,8 @@ from __future__ import division
 import json
 import time
 import os
+import math
+import random
 
 from flask import Flask, render_template, request, redirect, url_for
 from neo4j.v1 import GraphDatabase, basic_auth
@@ -65,17 +67,17 @@ def lookup_route(route_id):
 
 generate_route_query = """\
 MATCH (middle1:Road)
-WHERE {lat} + (({latMetres}-{latVariability}) * 0.0000089) < middle1.latitude < {lat} + (({latMetres}+{latVariability}) * 0.0000089)
-AND   {long} + (({longMetres}-{longVariability}) * 0.0000089 / cos({lat} * 0.018))   < middle1.longitude <  {long} + (({longMetres}+{longVariability}) * 0.0000089 / cos({lat} * 0.018))
+WHERE {latLow} < middle1.latitude < {latHigh}
+AND   {longLow} < middle1.longitude < {longHigh}
 AND SIZE((middle1)-[:CONNECTS]-()) > 1
 
 MATCH (middle2:Road)
-WHERE {lat} + (({latMetres}-{latVariability}) * 0.0000089) + ((({latMetres}-{latVariability})/3) * 0.0000089)
+WHERE {latLow} + ((({latMetres}-{latVariability})/3) * 0.0000089)
       < middle2.latitude <
-      {lat} + (({latMetres}+{latVariability}) * 0.0000089) + ((({latMetres}+{latVariability})/3) * 0.0000089)
-AND   {long} + (({longMetres}-{longVariability}) * 0.0000089 / cos({lat} * 0.018)) + ((({longMetres}-{longVariability})*3) * 0.0000089 / cos({lat} + (({latMetres}+100) * 0.0000089) * 0.018))
+      {latHigh} + ((({latMetres}+{latVariability})/3) * 0.0000089)
+AND   {longLow} + ((({longMetres}-{longVariability})*3) * 0.0000089 / cos({lat} + (({latMetres}+100) * 0.0000089) * 0.018))
       < middle2.longitude <
-      {long} + (({longMetres}+{longVariability}) * 0.0000089 / cos({lat} * 0.018)) + ((({longMetres}+{longVariability})*3) * 0.0000089 / cos({lat} + (({latMetres}+100) * 0.0000089) * 0.018))
+      {longHigh} + ((({longMetres}+{longVariability})*3) * 0.0000089 / cos({lat} + (({latMetres}+100) * 0.0000089) * 0.018))
 AND SIZE((middle2)-[:CONNECTS]-()) > 1
 
 WITH middle1, middle2  WHERE middle1 <> middle2
@@ -88,12 +90,12 @@ WITH start, middle1, middle2,
      nodes(path) as roads,
      relationships(path) as connections
 LIMIT 1
-MERGE (route:Route { id: apoc.create.uuid() })
+MERGE (route:Route { points: [road in roads | road.latitude + "," + road.longitude] })
+ON CREATE SET route.id =  apoc.create.uuid()
 SET route.start = [start.latitude, start.longitude],
     route.middle1 = [middle1.latitude, middle1.longitude],
     route.middle2 = [middle2.latitude, middle2.longitude],
     route.distance = reduce(acc=0, connection in connections | acc + connection.length ),
-    route.points = [road in roads | road.latitude + "," + road.longitude],
     route.estimatedDistance = {estimatedDistance},
     route.direction = {direction}
 
@@ -109,20 +111,41 @@ def routes():
         direction = request.form.get('direction')
         adjustment = 1 if direction == "north" else -1
 
-        lat_metres = (estimated_distance / 5) * adjustment
-        lat_variability = abs(lat_metres / 10)
+        lats = sorted([(estimated_distance / 5) * adjustment, (estimated_distance / 4) * adjustment])
+        lat_metres = random.randint(lats[0], lats[1])
+
+        lats_var = sorted([int(abs(lat_metres / 10)), int(abs(lat_metres / 8))])
+        lat_variability = random.randint(lats_var[0], lats_var[1])
+
+        long_metres = 100
+        long_variability = 200
+
+        lat = 51.357397146246264
+        lon = -0.20153965352074504
+
+        lat_low = lat + ((lat_metres-lat_variability) * 0.0000089)
+        lat_high = lat + ((lat_metres+lat_variability) * 0.0000089)
+
+        long_low = lon + ((long_metres-long_variability) * 0.0000089 / math.cos(lat * 0.018))
+        long_high = lon + ((long_metres+long_variability) * 0.0000089 / math.cos(lat * 0.018))
 
         with driver.session() as session:
             start = int(round(time.time() * 1000))
             result = session.run(generate_route_query, {
-                "lat": 51.357397146246264,
-                "long": -0.20153965352074504,
+                "lat": lat,
+                "long": lon,
+
+                "latLow": lat_low,
+                "latHigh": lat_high,
+
+                "longLow": long_low,
+                "longHigh": long_high,
 
                 "latMetres": lat_metres,
                 "latVariability": lat_variability,
 
-                "longMetres": 100,
-                "longVariability": 200,
+                "longMetres": long_metres,
+                "longVariability": long_variability,
                 "direction": direction,
                 "estimatedDistance": estimated_distance
             })
