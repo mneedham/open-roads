@@ -12,7 +12,7 @@
 
   <div id="main-wrap">
     <div id="sidebar">
-      <form action="/routes2" method="POST">
+      <form action="/routes" method="POST">
         <fieldset>
           <legend>Run details</legend>
 
@@ -60,23 +60,8 @@
             maxZoom: 18,
         }).addTo(map);
 
-    var rawPoints = {{ runs|safe }};
-
-    var coordinates = [];
-
-    for (let rawPoint of rawPoints) {
-      coordinates.push(new L.LatLng(rawPoint["latitude"], rawPoint["longitude"]))
-    }
-
-      L.polyline(
-          coordinates,
-          {
-              color: 'blue',
-              weight: 3,
-              opacity: .7,
-              lineJoin: 'round'
-          }
-      ).addTo(map);
+    L.marker([{{lat_low}}, {{lon_low}}]).addTo(map);
+    L.marker([{{lat_high}}, {{lon_high}}]).addTo(map);
 
     </script>
 
