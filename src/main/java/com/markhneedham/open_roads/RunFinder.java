@@ -16,7 +16,6 @@ import org.neo4j.graphdb.Direction;
 import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.Path;
-import org.neo4j.graphdb.PathExpander;
 import org.neo4j.graphdb.PropertyContainer;
 import org.neo4j.graphdb.Relationship;
 import org.neo4j.graphdb.RelationshipType;
@@ -69,9 +68,10 @@ public class RunFinder
 
         List<Relationship> relationshipsSeenSoFar = new ArrayList<>();
 
-        StandardExpander orderedExpander = new OrderedByTypeExpander().add( RelationshipType.withName( "CONNECTS" ), Direction.BOTH );
+        StandardExpander orderedExpander = new OrderedByTypeExpander()
+                .add( RelationshipType.withName( "CONNECTS" ), Direction.BOTH );
 
-        MyStandardExpander expander = new MyStandardExpander(orderedExpander, Clock.systemUTC());
+        TimeConstrainedExpander expander = new TimeConstrainedExpander(orderedExpander, Clock.systemUTC(), 200);
 
         PathFinder<Path> shortestPathFinder = GraphAlgoFactory.shortestPath( expander, 250 );
         // pass in a predicate which filters based on the result of the path from the previous path finders
