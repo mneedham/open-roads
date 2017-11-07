@@ -9,10 +9,14 @@
   <script type="text/javascript" src="https://rawgit.com/jieter/Leaflet.encoded/master/Polyline.encoded.js"></script>
   <link rel="stylesheet" href="http://cdn.leafletjs.com/leaflet-0.7/leaflet.css"/>
 
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/0.4.2/leaflet.draw.css"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/0.4.2/leaflet.draw.js"></script>
+
+
 
   <div id="main-wrap">
     <div id="sidebar">
-      <form action="/routes2" method="POST">
+      <form action="/routes" method="POST">
         <fieldset>
           <legend>Run details</legend>
 
@@ -54,7 +58,7 @@
   </div>
 
     <script>
-    var map = L.map('map').setView([{{lat_centre}}, {{long_centre}}], 14);
+    var map = L.map('map', {drawControl: true}).setView([{{lat_centre}}, {{long_centre}}], 14);
     L.tileLayer(
         'http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 18,
@@ -77,6 +81,22 @@
               lineJoin: 'round'
           }
       ).addTo(map);
+
+    // FeatureGroup is to store editable layers
+    var drawnItems = new L.FeatureGroup();
+     map.addLayer(drawnItems);
+     var drawControl = new L.Control.Draw({
+         edit: {
+             featureGroup: drawnItems
+         }
+     });
+     map.addControl(drawControl);
+
+     map.on(L.Draw.Event.CREATED, function (event) {
+        var layer = event.layer;
+        drawnItems.addLayer(layer);
+        console.log(layer);
+    });
 
     </script>
 

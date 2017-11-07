@@ -11,3 +11,4 @@ When we come into the `BestFirstSelector` we're deciding which of the relationsh
 
 How does that get called by other parts of the code?
 
+The web app could ask my current location to figure out where its starting point should be.
