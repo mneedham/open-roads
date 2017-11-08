@@ -32,32 +32,19 @@ public class RunFinder
     @Context
     public GraphDatabaseService db;
 
+
     public static class Hit
-    {
-        public Path startToMiddle1Path;
-        public Path middle1ToMiddle2Path;
-        public Path middle2ToStartPath;
-
-        public Hit( Path startToMiddle1Path, Path middle1ToMiddle2Path, Path middle2ToStartPath )
-        {
-            this.startToMiddle1Path = startToMiddle1Path;
-            this.middle1ToMiddle2Path = middle1ToMiddle2Path;
-            this.middle2ToStartPath = middle2ToStartPath;
-        }
-    }
-
-    public static class Hit2
     {
         public Path path;
 
-        public Hit2( Path... paths )
+        public Hit( Path... paths )
         {
             path = new CombinedPath( paths );
         }
     }
 
-    @Procedure(value = "roads.findMeARoute2")
-    public Stream<Hit2> findMeARoute2(
+    @Procedure(value = "roads.findMeARoute")
+    public Stream<Hit> findMeARoute(
             @Name("start") Node start,
             @Name("middle1") Node middle1,
             @Name("middle2") Node middle2
@@ -114,56 +101,6 @@ public class RunFinder
         }
 
         System.out.println( "paths expanded = " + expander.pathsExpanded() );
-        return Stream.of( new Hit2(startToMiddle1Path, middle1ToMiddle2Path, middle2ToStartPath) );
-    }
-
-    @Procedure(value = "roads.findMeARoute")
-    public Stream<Hit> findMeARoute(
-            @Name("start") Node start,
-            @Name("middle1") Node middle1,
-            @Name("middle2") Node middle2
-
-    )
-    {
-        System.out.println( "start = " + start + ", middle1 = " + middle1 + ", middle2 = " + middle2 );
-
-        /*
-        Cul de sacs break this at the moment
-        match (start)   where id(start)   = 184709
-        match (middle1) where id(middle1) = 184763
-        match (middle2) where id(middle2) = 184846
-         */
-
-        List<Relationship> relationshipsSeenSoFar = new ArrayList<>();
-
-        StandardExpander expander = new OrderedByTypeExpander().add( RelationshipType.withName( "CONNECTS" ), Direction.BOTH );
-
-
-        PathFinder<Path> shortestPathFinder = GraphAlgoFactory.shortestPath( expander, 250 );
-        // pass in a predicate which filters based on the result of the path from the previous path finders
-        ShortestPath shortestUniquePathFinder = new ShortestPath( Integer.MAX_VALUE, expander, path -> {
-            return stream( path.relationships().spliterator(), false ).noneMatch( relationshipsSeenSoFar::contains );
-        });
-
-        Path startToMiddle1Path = shortestPathFinder.findSinglePath( start, middle1 );
-
-        for ( Relationship relationship : startToMiddle1Path.relationships() )
-        {
-            relationshipsSeenSoFar.add( relationship );
-        }
-
-        Path middle1ToMiddle2Path = shortestUniquePathFinder.findSinglePath( middle1, middle2 );
-
-        if ( middle1ToMiddle2Path != null )
-        {
-            for ( Relationship relationship : middle1ToMiddle2Path.relationships() )
-            {
-                relationshipsSeenSoFar.add( relationship );
-            }
-        }
-
-        Path middle2ToStartPath = shortestUniquePathFinder.findSinglePath( middle2, start );
-
         return Stream.of( new Hit(startToMiddle1Path, middle1ToMiddle2Path, middle2ToStartPath) );
     }
 

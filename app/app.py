@@ -9,6 +9,8 @@ import random
 from flask import Flask, render_template, request, redirect, url_for
 from neo4j.v1 import GraphDatabase, basic_auth
 
+from haversine import haversine
+
 neo4j_host = os.getenv('NEO4J_HOST', "bolt://localhost:7687")
 
 app = Flask(__name__)
@@ -54,6 +56,9 @@ def lookup_route(route_id):
         lat_centre = sum(lats) / len(lats) if len(lats) > 0 else 0
         long_centre = sum(longs) / len(lats) if len(lats) > 0 else 0
 
+        lat = request.args.get("lat")
+        lon = request.args.get("lon")
+
         if content_type == "gpx":
             return render_template("gpx.xml", runs=runs)
         else:
@@ -64,11 +69,13 @@ def lookup_route(route_id):
                                    distance=distance,
                                    lat_centre=lat_centre,
                                    long_centre=long_centre,
+                                   lat = lat,
+                                   lon = lon,
                                    route_id=route_id
                                    )
 
 
-generate_route_query2 = """\
+generate_route_query = """\
 MATCH (middle1:Road)
 WHERE {middle1LatLow} < middle1.latitude < {middle1LatHigh}
 AND   {middle1LongLow} < middle1.longitude < {middle1LongHigh}
@@ -83,7 +90,7 @@ WITH middle1, middle2  WHERE middle1 <> middle2
 MATCH (start:Road {latitude: {lat}, longitude: {long}})
 WITH start, middle1, middle2
 ORDER BY rand()
-CALL roads.findMeARoute2(start, middle1, middle2)
+CALL roads.findMeARoute(start, middle1, middle2)
 YIELD path
 WITH start, middle1, middle2,
      nodes(path) as roads,
@@ -112,24 +119,33 @@ def routes():
         radius = random.randint(lats[0], lats[1])
         print(radius)
 
-        lat = 51.357397146246264
-        lon = -0.20153965352074504
+        lat = float(request.form.get('latitude'))
+        lon = float(request.form.get('longitude'))
 
-        points = generate_points(lat, lon, 2000.0, 20)
-        low_index = random.randint(0, 20)-1
-        high_index = random.randint(0, 20)-1
+        points_to_generate = 200
+        points = generate_points(lat, lon, estimated_distance / 4, points_to_generate)
+        low_index = random.randint(0, points_to_generate)-1
+
+        low_point = points[low_index]
+
+        for point in points:
+            point["distanceFromLowIndex"] = haversine((point["lat"], point["lon"]), (low_point["lat"], low_point["lon"])) * 1000
+
+        suitable_high_points = [point for point in points if estimated_distance / 4  > point["distanceFromLowIndex"] > estimated_distance / 10]
+        high_index = random.randint(0, len(suitable_high_points))-1
+        high_point = suitable_high_points[high_index]
 
         lat_variability = 500
         long_variability = 500
 
-        middle1_lat_low = points[low_index]["lat"]
-        middle1_long_low = points[low_index]["lon"]
+        middle1_lat_low = low_point["lat"]
+        middle1_long_low = low_point["lon"]
 
         middle1_lat_high = middle1_lat_low + (lat_variability * 0.0000089)
         middle1_long_high = middle1_long_low + ((long_variability * 0.0000089) / math.cos(lat * 0.018))
 
-        middle2_lat_low = points[high_index]["lat"]
-        middle2_long_low = points[high_index]["lon"]
+        middle2_lat_low = high_point["lat"]
+        middle2_long_low = high_point["lon"]
 
         middle2_lat_high = middle2_lat_low + (lat_variability * 0.0000089)
         middle2_long_high = middle2_long_low + ((long_variability * 0.0000089) / math.cos(lat * 0.018))
@@ -155,14 +171,16 @@ def routes():
 
         with driver.session() as session:
             start = int(round(time.time() * 1000))
-            result = session.run(generate_route_query2, params)
+            result = session.run(generate_route_query, params)
             row = result.peek()
             end = int(round(time.time() * 1000))
             route_id = row["routeId"]
             print("Route {id} generated in {time}".format(
                 id=route_id, time=(end - start)))
 
-        return redirect(url_for('lookup_route', route_id=route_id))
+        return redirect(url_for('lookup_route', route_id=route_id,
+                                                lat = request.form.get('latitude'),
+                                                lon = request.form.get('longitude')))
 
 def generate_points(centerLat, centerLon, radius, N=10):
     circle_points = []
@@ -173,7 +191,6 @@ def generate_points(centerLat, centerLon, radius, N=10):
         point = {}
         point['lat'] = centerLat + (180 / math.pi) * (dy / 6378137)
         point['lon'] = centerLon + (180 / math.pi) * (dx / 6378137) / math.cos(centerLat * math.pi / 180)
-
         circle_points.append(point)
     return circle_points
 
@@ -201,12 +218,17 @@ def points():
 
 @app.route('/')
 def home():
+    lat = "51.357397146246264"
+    lon = "-0.20153965352074504"
+
     return render_template("halfPageMap.html",
                            direction="north",
                            estimated_distance=5000,
                            runs=json.dumps([]),
-                           lat_centre=51.357397146246264,
-                           long_centre=-0.20153965352074504
+                           lat_centre=lat,
+                           long_centre=lon,
+                           lat =  lat,
+                           lon = lon
                            )
 
 
