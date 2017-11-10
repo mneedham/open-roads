@@ -1,10 +1,12 @@
 from __future__ import division
+from sortedcontainers import SortedSet
 
 import json
 import time
 import os
 import math
 import random
+import polyline
 
 from flask import Flask, render_template, request, redirect, url_for
 from neo4j.v1 import GraphDatabase, basic_auth
@@ -246,6 +248,44 @@ def get_routes():
     return render_template("listRoutes.html",
                            runs=runs
                            )
+
+lookup_points_query = """\
+OPTIONAL MATCH (road:Road)
+WHERE {point}.latitude  - (100 * 0.0000089) < road.latitude < {point}.latitude + (100 * 0.0000089)
+AND   {point}.longitude - (100 * 0.0000089 / cos(road.latitude * 0.018)) < road.longitude <  {point}.longitude + (100 * 0.0000089 / cos(road.latitude * 0.018))
+return {point} AS point, road
+order by distance(point(road), point({point}))
+limit 1
+"""
+
+@app.route('/segments')
+def segments():
+    lat = "51.357397146246264"
+    lon = "-0.20153965352074504"
+    encoded_segment = "qymxHzte@JGj@Er@Qb@Ob@G~@[t@KfDcAfAWPCR?f@I^CJEb@c@^Yt@WxA_@DCBKQuBKq@C{@IYMOw@c@e@_@WOYKMAYDiBD_@Ae@FKA_@]]u@W]QKo@W[Uq@U[SCEKqAGMOKS?gBXQHcBXg@R"
+
+    unique_points = []
+
+    with driver.session() as session:
+        points = polyline.decode(encoded_segment)
+        for point in points:
+            result = session.run(lookup_points_query, {"point": {"latitude": point[0], "longitude": point[1]}})
+
+            for row in result:
+                unique_points.append((row["road"]["latitude"], row["road"]["longitude"]))
+
+        runs = [{"latitude": unique_point[0], "longitude": unique_point[1]} for unique_point in unique_points ]
+
+        return render_template("halfPageMap.html",
+                                direction="north",
+                                estimated_distance=5000,
+                                runs=json.dumps(runs),
+                                lat_centre=lat,
+                                long_centre=lon,
+                                lat =  lat,
+                                lon = lon
+                                )
+
 
 # if __name__ == "__main__":
 #     app.run(port = 5001)
