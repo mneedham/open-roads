@@ -73,7 +73,8 @@ def lookup_route(route_id):
                                    long_centre=long_centre,
                                    lat = lat,
                                    lon = lon,
-                                   route_id=route_id
+                                   route_id=route_id,
+                                   segments = all_segments()
                                    )
 
 
@@ -88,12 +89,14 @@ WHERE {middle2LatLow} < middle2.latitude < {middle2LatHigh}
 AND   {middle2LongLow} < middle2.longitude < {middle2LongHigh}
 AND SIZE((middle2)-[:CONNECTS]-()) > 1
 
-WITH middle1, middle2  WHERE middle1 <> middle2
+WITH middle1, middle2  WHERE size(apoc.coll.toSet([middle1, middle2])) = 2
 MATCH (start:Road {latitude: {lat}, longitude: {long}})
 WITH start, middle1, middle2
 ORDER BY rand()
-CALL roads.findMeARoute(start, [middle1, middle2])
+
+CALL roads.findMeARoute(start, [middle1, middle2], {segmentId})
 YIELD path
+
 WITH start, middle1, middle2,
      nodes(path) as roads,
      relationships(path) as connections
@@ -152,6 +155,8 @@ def routes():
         middle2_lat_high = middle2_lat_low + (lat_variability * 0.0000089)
         middle2_long_high = middle2_long_low + ((long_variability * 0.0000089) / math.cos(lat * 0.018))
 
+        segment_id = request.form.get('segment')
+
         params = {
                 "lat": lat,
                 "long": lon,
@@ -165,11 +170,14 @@ def routes():
                 "middle2LatHigh": middle2_lat_high,
                 "middle2LongLow": middle2_long_low,
                 "middle2LongHigh": middle2_long_high,
+
                 "estimatedDistance": estimated_distance,
-                "direction": "N/A"
+                "direction": "N/A",
+
+                "segmentId": segment_id
             }
 
-        # print(params)
+        print(params)
 
         with driver.session() as session:
             start = int(round(time.time() * 1000))
@@ -215,8 +223,20 @@ def points():
                            lat_low=lat_low,
                            lon_low=long_low,
                            lat_high=lat_high,
-                           lon_high=long_high
+                           lon_high=long_high,
+                           segments = all_segments()
                            )
+
+all_segments_query = """\
+MATCH (segment:Segment)
+RETURN segment
+"""
+
+def all_segments():
+    with driver.session() as session:
+        result = session.run(all_segments_query)
+        return [{"id": row["segment"]["id"], "name": row["segment"]["name"]} for row in result ]
+
 
 @app.route('/')
 def home():
@@ -230,7 +250,8 @@ def home():
                            lat_centre=lat,
                            long_centre=lon,
                            lat =  lat,
-                           lon = lon
+                           lon = lon,
+                           segments = all_segments()
                            )
 
 
@@ -263,11 +284,11 @@ def segments():
     lat = "51.357397146246264"
     lon = "-0.20153965352074504"
     encoded_segment = "qymxHzte@JGj@Er@Qb@Ob@G~@[t@KfDcAfAWPCR?f@I^CJEb@c@^Yt@WxA_@DCBKQuBKq@C{@IYMOw@c@e@_@WOYKMAYDiBD_@Ae@FKA_@]]u@W]QKo@W[Uq@U[SCEKqAGMOKS?gBXQHcBXg@R"
+    points = polyline.decode(encoded_segment)
 
     translated_points = []
 
     with driver.session() as session:
-        points = polyline.decode(encoded_segment)
         for point in points:
             result = session.run(lookup_points_query, {"point": {"latitude": point[0], "longitude": point[1]}})
 
@@ -275,6 +296,36 @@ def segments():
                 translated_points.append((row["road"]["latitude"], row["road"]["longitude"]))
 
         runs = [{"latitude": point[0], "longitude": point[1]} for point in translated_points ]
+
+        return render_template("halfPageMap.html",
+                                direction="north",
+                                estimated_distance=5000,
+                                runs=json.dumps(runs),
+                                lat_centre=lat,
+                                long_centre=lon,
+                                lat =  lat,
+                                lon = lon
+                                )
+
+find_segment_query = """\
+MATCH (segment:Segment {id: {id}})
+RETURN [point in segment.points | apoc.map.fromLists(["latitude", "longitude"], [p in split(point, ",") | toFloat(p) ])  ] AS roads
+"""
+
+@app.route('/segments/<segment_id>')
+def find_segment(segment_id):
+    lat = "51.357397146246264"
+    lon = "-0.20153965352074504"
+
+    with driver.session() as session:
+        runs = []
+        print(segment_id)
+        result = session.run(find_segment_query, {"id": int(segment_id)})
+        print(result)
+        for row in result:
+            for sub_row in row["roads"]:
+                runs.append(
+                    {"latitude": sub_row["latitude"], "longitude": sub_row["longitude"]})
 
         return render_template("halfPageMap.html",
                                 direction="north",

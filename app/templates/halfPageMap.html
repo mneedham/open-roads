@@ -21,10 +21,13 @@
           <legend>Run details</legend>
 
           <p>
-            <label for="direction">Direction</label>
-            <select id="direction" name="direction">
-              <option value="north" {% if direction == 'north' %} selected {% endif %} >North</option>
-              <option value="south" {% if direction == 'south' %} selected {% endif %}>South</option>
+            <label for="segment">Segment</label>
+            <select id="segment" name="segment">
+              <option value="" {% if segment == '' %} selected {% endif %} >None</option>
+              {% for segment in segments %}
+              <option value="{{segment['id']}}" {% if segment == '{{segment[id]}}' %} selected {% endif %}>{{segment['name']}}</option>
+              {% endfor %}
+
             </select>
           </p>
 
