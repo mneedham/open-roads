@@ -264,7 +264,7 @@ def segments():
     lon = "-0.20153965352074504"
     encoded_segment = "qymxHzte@JGj@Er@Qb@Ob@G~@[t@KfDcAfAWPCR?f@I^CJEb@c@^Yt@WxA_@DCBKQuBKq@C{@IYMOw@c@e@_@WOYKMAYDiBD_@Ae@FKA_@]]u@W]QKo@W[Uq@U[SCEKqAGMOKS?gBXQHcBXg@R"
 
-    unique_points = []
+    translated_points = []
 
     with driver.session() as session:
         points = polyline.decode(encoded_segment)
@@ -272,9 +272,9 @@ def segments():
             result = session.run(lookup_points_query, {"point": {"latitude": point[0], "longitude": point[1]}})
 
             for row in result:
-                unique_points.append((row["road"]["latitude"], row["road"]["longitude"]))
+                translated_points.append((row["road"]["latitude"], row["road"]["longitude"]))
 
-        runs = [{"latitude": unique_point[0], "longitude": unique_point[1]} for unique_point in unique_points ]
+        runs = [{"latitude": point[0], "longitude": point[1]} for point in translated_points ]
 
         return render_template("halfPageMap.html",
                                 direction="north",
