@@ -60,48 +60,30 @@ public class RunFinder
         StandardExpander orderedExpander = new OrderedByTypeExpander()
                 .add( RelationshipType.withName( "CONNECTS" ), Direction.BOTH );
 
-        TimeConstrainedExpander expander = new TimeConstrainedExpander(orderedExpander, Clock.systemUTC(), 200);
+        TimeConstrainedExpander expander = new TimeConstrainedExpander( orderedExpander, Clock.systemUTC(), 200 );
 
-        PathFinder<Path> shortestPathFinder = GraphAlgoFactory.shortestPath( expander, 250 );
         // pass in a predicate which filters based on the result of the path from the previous path finders
-        ShortestPath shortestUniquePathFinder = new ShortestPath( Integer.MAX_VALUE, expander, path -> {
+        ShortestPath shortestUniquePathFinder = new ShortestPath( Integer.MAX_VALUE, expander, path ->
+        {
             return stream( path.relationships().spliterator(), false ).noneMatch( relationshipsSeenSoFar::contains );
-        });
+        } );
 
-        List<Node> midPoints = new ArrayList<>();
-        midPoints.add(middle1);
-        midPoints.add(middle2);
-
-        Path startToMiddle1Path = shortestPathFinder.findSinglePath( start, midPoints.get(0) );
-
-        if ( startToMiddle1Path == null )
-        {
-            System.out.println( "paths expanded = " + expander.pathsExpanded() );
-            return Stream.empty(  );
-        }
-
-        for ( Relationship relationship : startToMiddle1Path.relationships() )
-        {
-            relationshipsSeenSoFar.add( relationship );
-        }
-
-        List<Node> one = Stream.of( middle1, middle2 ).collect( Collectors.toList() );
-        List<Node> two = Stream.of( middle2, start ).collect( Collectors.toList() );
+        List<Node> one = Stream.of( start, middle1, middle2 ).collect( Collectors.toList() );
+        List<Node> two = Stream.of( middle1, middle2, start ).collect( Collectors.toList() );
 
         List<Pair<Node, Node>> pairs = IntStream.range( 0, Math.min( one.size(), two.size() ) )
                 .mapToObj( index -> Pair.of( one.get( index ), two.get( index ) ) ).collect( Collectors.toList() );
 
         List<Path> paths = new ArrayList<>();
-        paths.add( startToMiddle1Path );
         for ( Pair<Node, Node> pair : pairs )
         {
             Path path = shortestUniquePathFinder.findSinglePath( pair.first(), pair.other() );
             if ( path == null )
             {
                 System.out.println( "paths expanded = " + expander.pathsExpanded() );
-                return Stream.empty(  );
+                return Stream.empty();
             }
-            paths.add(path);
+            paths.add( path );
 
             for ( Relationship relationship : path.relationships() )
             {
@@ -109,7 +91,7 @@ public class RunFinder
             }
         }
 
-        return Stream.of( new Hit(paths.toArray( new Path[paths.size()] )) );
+        return Stream.of( new Hit( paths.toArray( new Path[paths.size()] ) ) );
     }
 
     static class CombinedPath implements  Path {

@@ -43,8 +43,8 @@ def lookup_route(route_id):
         result = session.run(show_route_query, {"id": route_id})
 
         for row in result:
-            print("Start: {start}, Middle: {middle1}, Middle: {middle2}, Distance: {distance}"
-                  .format(start=row["start"], middle1=row["middle1"], middle2=row["middle2"], distance=row["distance"]))
+            # print("Start: {start}, Middle: {middle1}, Middle: {middle2}, Distance: {distance}"
+            #       .format(start=row["start"], middle1=row["middle1"], middle2=row["middle2"], distance=row["distance"]))
             distance = row["distance"]
             if distance:
                 for sub_row in row["roads"]:
@@ -119,7 +119,7 @@ def routes():
 
         lats = sorted([(estimated_distance / 5),(estimated_distance / 4)])
         radius = random.randint(lats[0], lats[1])
-        print(radius)
+        # print(radius)
 
         lat = float(request.form.get('latitude'))
         lon = float(request.form.get('longitude'))
@@ -169,7 +169,7 @@ def routes():
                 "direction": "N/A"
             }
 
-        print(params)
+        # print(params)
 
         with driver.session() as session:
             start = int(round(time.time() * 1000))
