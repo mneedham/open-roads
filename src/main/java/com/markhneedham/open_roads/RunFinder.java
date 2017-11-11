@@ -7,6 +7,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import org.neo4j.graphalgo.GraphAlgoFactory;
@@ -21,6 +22,7 @@ import org.neo4j.graphdb.Relationship;
 import org.neo4j.graphdb.RelationshipType;
 import org.neo4j.graphdb.impl.OrderedByTypeExpander;
 import org.neo4j.graphdb.impl.StandardExpander;
+import org.neo4j.helpers.collection.Pair;
 import org.neo4j.procedure.Context;
 import org.neo4j.procedure.Name;
 import org.neo4j.procedure.Procedure;
@@ -66,7 +68,11 @@ public class RunFinder
             return stream( path.relationships().spliterator(), false ).noneMatch( relationshipsSeenSoFar::contains );
         });
 
-        Path startToMiddle1Path = shortestPathFinder.findSinglePath( start, middle1 );
+        List<Node> midPoints = new ArrayList<>();
+        midPoints.add(middle1);
+        midPoints.add(middle2);
+
+        Path startToMiddle1Path = shortestPathFinder.findSinglePath( start, midPoints.get(0) );
 
         if ( startToMiddle1Path == null )
         {
@@ -79,29 +85,31 @@ public class RunFinder
             relationshipsSeenSoFar.add( relationship );
         }
 
-        Path middle1ToMiddle2Path = shortestUniquePathFinder.findSinglePath( middle1, middle2 );
+        List<Node> one = Stream.of( middle1, middle2 ).collect( Collectors.toList() );
+        List<Node> two = Stream.of( middle2, start ).collect( Collectors.toList() );
 
-        if ( middle1ToMiddle2Path == null )
+        List<Pair<Node, Node>> pairs = IntStream.range( 0, Math.min( one.size(), two.size() ) )
+                .mapToObj( index -> Pair.of( one.get( index ), two.get( index ) ) ).collect( Collectors.toList() );
+
+        List<Path> paths = new ArrayList<>();
+        paths.add( startToMiddle1Path );
+        for ( Pair<Node, Node> pair : pairs )
         {
-            System.out.println( "paths expanded = " + expander.pathsExpanded() );
-            return Stream.empty(  );
-        }
+            Path path = shortestUniquePathFinder.findSinglePath( pair.first(), pair.other() );
+            if ( path == null )
+            {
+                System.out.println( "paths expanded = " + expander.pathsExpanded() );
+                return Stream.empty(  );
+            }
+            paths.add(path);
 
-            for ( Relationship relationship : middle1ToMiddle2Path.relationships() )
+            for ( Relationship relationship : path.relationships() )
             {
                 relationshipsSeenSoFar.add( relationship );
             }
-
-        Path middle2ToStartPath = shortestUniquePathFinder.findSinglePath( middle2, start );
-
-        if ( middle2ToStartPath == null )
-        {
-            System.out.println( "paths expanded = " + expander.pathsExpanded() );
-            return Stream.empty(  );
         }
 
-        System.out.println( "paths expanded = " + expander.pathsExpanded() );
-        return Stream.of( new Hit(startToMiddle1Path, middle1ToMiddle2Path, middle2ToStartPath) );
+        return Stream.of( new Hit(paths.toArray( new Path[paths.size()] )) );
     }
 
     static class CombinedPath implements  Path {
