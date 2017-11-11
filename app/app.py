@@ -92,7 +92,7 @@ WITH middle1, middle2  WHERE middle1 <> middle2
 MATCH (start:Road {latitude: {lat}, longitude: {long}})
 WITH start, middle1, middle2
 ORDER BY rand()
-CALL roads.findMeARoute(start, middle1, middle2)
+CALL roads.findMeARoute(start, [middle1, middle2])
 YIELD path
 WITH start, middle1, middle2,
      nodes(path) as roads,

@@ -48,12 +48,10 @@ public class RunFinder
     @Procedure(value = "roads.findMeARoute")
     public Stream<Hit> findMeARoute(
             @Name("start") Node start,
-            @Name("middle1") Node middle1,
-            @Name("middle2") Node middle2
-
+            @Name("midpoints") List<Node> midpoints
     )
     {
-        System.out.println( "start = " + start + ", middle1 = " + middle1 + ", middle2 = " + middle2 );
+        System.out.println( "start = " + start + ", midpoints = " + midpoints );
 
         List<Relationship> relationshipsSeenSoFar = new ArrayList<>();
 
@@ -68,8 +66,9 @@ public class RunFinder
             return stream( path.relationships().spliterator(), false ).noneMatch( relationshipsSeenSoFar::contains );
         } );
 
-        List<Node> one = Stream.of( start, middle1, middle2 ).collect( Collectors.toList() );
-        List<Node> two = Stream.of( middle1, middle2, start ).collect( Collectors.toList() );
+        
+        List<Node> one = Stream.concat( Stream.of(start), midpoints.stream() ).collect( Collectors.toList() );
+        List<Node> two = Stream.concat( midpoints.stream(), Stream.of(start) ).collect( Collectors.toList() );
 
         List<Pair<Node, Node>> pairs = IntStream.range( 0, Math.min( one.size(), two.size() ) )
                 .mapToObj( index -> Pair.of( one.get( index ), two.get( index ) ) ).collect( Collectors.toList() );
