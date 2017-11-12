@@ -270,42 +270,6 @@ def get_routes():
                            runs=runs
                            )
 
-lookup_points_query = """\
-OPTIONAL MATCH (road:Road)
-WHERE {point}.latitude  - (100 * 0.0000089) < road.latitude < {point}.latitude + (100 * 0.0000089)
-AND   {point}.longitude - (100 * 0.0000089 / cos(road.latitude * 0.018)) < road.longitude <  {point}.longitude + (100 * 0.0000089 / cos(road.latitude * 0.018))
-return {point} AS point, road
-order by distance(point(road), point({point}))
-limit 1
-"""
-
-@app.route('/segments')
-def segments():
-    lat = "51.357397146246264"
-    lon = "-0.20153965352074504"
-    encoded_segment = "qymxHzte@JGj@Er@Qb@Ob@G~@[t@KfDcAfAWPCR?f@I^CJEb@c@^Yt@WxA_@DCBKQuBKq@C{@IYMOw@c@e@_@WOYKMAYDiBD_@Ae@FKA_@]]u@W]QKo@W[Uq@U[SCEKqAGMOKS?gBXQHcBXg@R"
-    points = polyline.decode(encoded_segment)
-
-    translated_points = []
-
-    with driver.session() as session:
-        for point in points:
-            result = session.run(lookup_points_query, {"point": {"latitude": point[0], "longitude": point[1]}})
-
-            for row in result:
-                translated_points.append((row["road"]["latitude"], row["road"]["longitude"]))
-
-        runs = [{"latitude": point[0], "longitude": point[1]} for point in translated_points ]
-
-        return render_template("halfPageMap.html",
-                                direction="north",
-                                estimated_distance=5000,
-                                runs=json.dumps(runs),
-                                lat_centre=lat,
-                                long_centre=lon,
-                                lat =  lat,
-                                lon = lon
-                                )
 
 find_segment_query = """\
 MATCH (segment:Segment {id: {id}})
