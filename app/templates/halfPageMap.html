@@ -23,9 +23,9 @@
           <p>
             <label for="segment">Segment</label>
             <select id="segment" name="segment">
-              <option value="" {% if segment == '' %} selected {% endif %} >None</option>
+              <option value="" {% if segment_id=="" %} selected="selected"{% endif %} >None</option>
               {% for segment in segments %}
-              <option value="{{segment['id']}}" {% if segment == '{{segment[id]}}' %} selected {% endif %}>{{segment['name']}}</option>
+              <option value="{{segment['id']}}" {% if segment_id==segment['id'] %} selected="selected"{% endif %}>{{segment['name']}}</option>
               {% endfor %}
 
             </select>

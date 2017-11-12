@@ -5,6 +5,7 @@ import math
 import os
 import random
 import time
+import util
 
 from flask import Flask, render_template, request, redirect, url_for
 from haversine import haversine
@@ -47,6 +48,7 @@ def lookup_route(route_id):
 
         lat = request.args.get("lat")
         lon = request.args.get("lon")
+        segment = request.args.get("segment")
 
         if content_type == "gpx":
             return render_template("gpx.xml", runs=runs)
@@ -61,7 +63,8 @@ def lookup_route(route_id):
                                    lat=lat,
                                    lon=lon,
                                    route_id=route_id,
-                                   segments=all_segments()
+                                   segments=all_segments(),
+                                   segment_id=int(segment)
                                    )
 
 
@@ -78,16 +81,16 @@ def routes():
         lon = float(request.form.get('longitude'))
 
         points_to_generate = 200
-        points = generate_points(lat, lon, radius, points_to_generate)
+        generated_points = util.generate_points(lat, lon, radius, points_to_generate)
         low_index = random.randint(0, points_to_generate) - 1
 
-        low_point = points[low_index]
+        low_point = generated_points[low_index]
 
-        for point in points:
+        for point in generated_points:
             point["distanceFromLowIndex"] = haversine((point["lat"], point["lon"]),
                                                       (low_point["lat"], low_point["lon"])) * 1000
 
-        suitable_high_points = [point for point in points if
+        suitable_high_points = [point for point in generated_points if
                                 estimated_distance / 4 > point["distanceFromLowIndex"] > estimated_distance / 10]
         high_index = random.randint(0, len(suitable_high_points)) - 1
         high_point = suitable_high_points[high_index]
@@ -139,32 +142,21 @@ def routes():
 
         return redirect(url_for('lookup_route', route_id=route_id,
                                 lat=request.form.get('latitude'),
-                                lon=request.form.get('longitude')))
-
-
-def generate_points(lat, lon, radius, number_of_points=10):
-    circle_points = []
-    for k in range(number_of_points):
-        angle = math.pi * 2 * k / number_of_points
-        dx = radius * math.cos(angle)
-        dy = radius * math.sin(angle)
-        point = {'lat': lat + (180 / math.pi) * (dy / 6378137),
-                 'lon': lon + (180 / math.pi) * (dx / 6378137) / math.cos(lat * math.pi / 180)}
-        circle_points.append(point)
-    return circle_points
+                                lon=request.form.get('longitude'),
+                                segment=int(segment_id)))
 
 
 @app.route('/points')
 def points():
-    points = generate_points(51.357397146246264, -0.20153965352074504, 2000.0, 20)
+    generated_points = util.generate_points(51.357397146246264, -0.20153965352074504, 2000.0, 20)
     low_index = random.randint(0, 20) - 1
     high_index = random.randint(0, 20) - 1
 
-    lat_low = points[low_index]["lat"]
-    long_low = points[low_index]["lon"]
+    lat_low = generated_points[low_index]["lat"]
+    long_low = generated_points[low_index]["lon"]
 
-    lat_high = points[high_index]["lat"]
-    long_high = points[high_index]["lon"]
+    lat_high = generated_points[high_index]["lat"]
+    long_high = generated_points[high_index]["lon"]
 
     return render_template("markers.html",
                            runs=json.dumps([]),
@@ -218,9 +210,7 @@ def find_segment(segment_id):
 
     with driver.session() as session:
         runs = []
-        print(segment_id)
         result = session.run(queries.find_segment, {"id": int(segment_id)})
-        print(result)
         for row in result:
             for sub_row in row["roads"]:
                 runs.append(
