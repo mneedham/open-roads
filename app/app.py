@@ -48,7 +48,7 @@ def lookup_route(route_id):
 
         lat = request.args.get("lat")
         lon = request.args.get("lon")
-        segment = request.args.get("segment")
+        segment = request.args.get("segment_id")
 
         if content_type == "gpx":
             return render_template("gpx.xml", runs=runs)
@@ -64,7 +64,7 @@ def lookup_route(route_id):
                                    lon=lon,
                                    route_id=route_id,
                                    segments=all_segments(),
-                                   segment_id=int(segment)
+                                   segment_id=int(segment) if segment else segment
                                    )
 
 
@@ -143,7 +143,7 @@ def routes():
         return redirect(url_for('lookup_route', route_id=route_id,
                                 lat=request.form.get('latitude'),
                                 lon=request.form.get('longitude'),
-                                segment=int(segment_id)))
+                                segment_id=segment_id))
 
 
 @app.route('/points')
