@@ -47,6 +47,9 @@
 
         </fieldset>
         <p>
+          <input type="hidden" name="shapeLatitude" id="shapeLatitude">
+          <input type="hidden" name="shapeLongitude" id="shapeLongitude">
+          <input type="hidden" name="shapeRadius" id="shapeRadius">
           <input type="submit" value="Generate route">
         </p>
       </form>
@@ -107,7 +110,13 @@
      map.on(L.Draw.Event.CREATED, function (event) {
         var layer = event.layer;
         drawnItems.addLayer(layer);
-        console.log(layer);
+
+         if ( event.layerType === "circle" )
+         {
+             document.getElementById( "shapeLatitude" ).value = layer._latlng.lat;
+             document.getElementById( "shapeLongitude" ).value = layer._latlng.lng;
+             document.getElementById( "shapeRadius" ).value = layer._mRadius;
+         }
     });
 
     </script>

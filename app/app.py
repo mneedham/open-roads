@@ -131,24 +131,30 @@ def routes():
         estimated_distance = request.form.get('estimatedDistance')
         estimated_distance = int(estimated_distance) if estimated_distance else 5000
 
-        lats = sorted([(estimated_distance / 5), (estimated_distance / 4)])
-        radius = random.randint(round(lats[0]), round(lats[1]))
+        start_lat = float(request.form.get('latitude'))
+        start_lon = float(request.form.get('longitude'))
 
-        lat = float(request.form.get('latitude'))
-        lon = float(request.form.get('longitude'))
-        segment_id = request.form.get('segment')
+        shape_lat = request.form.get('shapeLatitude')
+        shape_lon = request.form.get('shapeLongitude')
+        shape_radius = request.form.get("shapeRadius")
 
-        raw_mid_points = generate_mid_points(lat, lon, radius, estimated_distance)
+        midpoint_lat = float(shape_lat) if shape_lat else start_lat
+        midpoint_lon = float(shape_lon) if shape_lon else start_lon
+        midpoint_radius = float(shape_radius) if shape_radius else calculate_radius(estimated_distance)
+
+        raw_mid_points = generate_mid_points(midpoint_lat, midpoint_lon, midpoint_radius, estimated_distance)
         mid_points = [
             [mp["id"] for mp in mid_point["midpoints"]]
             for mid_point in raw_mid_points
         ]
 
+        segment_id = request.form.get('segment')
+
         with driver.session() as session:
             for mid_point in mid_points:
                 params = {
-                    "lat": lat,
-                    "long": lon,
+                    "lat": start_lat,
+                    "long": start_lon,
                     "segmentId": segment_id,
                     "direction": "N/A",
                     "estimatedDistance": estimated_distance,
@@ -168,6 +174,11 @@ def routes():
                     print("End of stream? {0}".format(e))
                     continue
             raise Exception("Could not find route")
+
+
+def calculate_radius(estimated_distance):
+    lats = sorted([(estimated_distance / 5), (estimated_distance / 4)])
+    return random.randint(round(lats[0]), round(lats[1]))
 
 
 def all_segments():
