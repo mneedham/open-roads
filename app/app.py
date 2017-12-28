@@ -9,7 +9,8 @@ import util
 
 from flask import Flask, render_template, request, redirect, url_for
 from haversine import haversine
-from neo4j.v1 import GraphDatabase
+from neo4j.v1 import GraphDatabase, ResultError
+from flask import jsonify
 
 import queries
 
@@ -68,6 +69,95 @@ def lookup_route(route_id):
                                    )
 
 
+def generate_mid_points(lat, lon, radius, estimated_distance):
+    points_to_generate = 1000
+    generated_points = util.generate_points(lat, lon, radius, points_to_generate)
+    low_index = random.randint(0, points_to_generate) - 1
+
+    low_point = generated_points[low_index]
+
+    for point in generated_points:
+        point["distanceFromLowIndex"] = haversine((point["lat"], point["lon"]),
+                                                  (low_point["lat"], low_point["lon"])) * 1000
+
+    suitable_high_points = [point for point in generated_points
+                            if estimated_distance / 4 > point["distanceFromLowIndex"] > estimated_distance / 10]
+    high_index = random.randint(0, len(suitable_high_points)) - 1
+    high_point = suitable_high_points[high_index]
+
+    lat_variability = 500
+    long_variability = 500
+
+    middle1_lat_low = low_point["lat"]
+    middle1_long_low = low_point["lon"]
+
+    middle1_lat_high = middle1_lat_low + (lat_variability * 0.0000089)
+    middle1_long_high = middle1_long_low + ((long_variability * 0.0000089) / math.cos(lat * 0.018))
+
+    middle2_lat_low = high_point["lat"]
+    middle2_long_low = high_point["lon"]
+
+    middle2_lat_high = middle2_lat_low + (lat_variability * 0.0000089)
+    middle2_long_high = middle2_long_low + ((long_variability * 0.0000089) / math.cos(lat * 0.018))
+
+    params = {
+        "middle1LatLow": middle1_lat_low,
+        "middle1LatHigh": middle1_lat_high,
+        "middle1LongLow": middle1_long_low,
+        "middle1LongHigh": middle1_long_high,
+
+        "middle2LatLow": middle2_lat_low,
+        "middle2LatHigh": middle2_lat_high,
+        "middle2LongLow": middle2_long_low,
+        "middle2LongHigh": middle2_long_high,
+    }
+
+    with driver.session() as session:
+        result = session.run(queries.generate_mid_points, params)
+        mid_points = [row for row in result]
+
+    return mid_points
+
+
+@app.route('/midpoints', methods=['GET'])
+def midpoints():
+
+    lat = float(request.args.get('latitude'))
+    lon = float(request.args.get('longitude'))
+    estimated_distance = float(request.args.get('distance', 5000))
+
+    lats = sorted([(estimated_distance / 5), (estimated_distance / 4)])
+    radius = random.randint(lats[0], lats[1])
+
+    raw_mid_points = generate_mid_points(lat, lon, radius, estimated_distance)
+
+    print("Combinations: {0}".format(len(raw_mid_points)))
+
+    mid_points = [{"m1": mid_point["middle1"]["id"], "m2": mid_point["middle2"]["id"]}
+                  for mid_point in raw_mid_points]
+
+    with driver.session() as session:
+        for mid_point in mid_points:
+            params = {
+                "lat": lat,
+                "long": lon,
+                "segmentId": "",
+                "direction": "N/A",
+                "estimatedDistance": estimated_distance,
+                "midpoints": [mid_point["m1"], mid_point["m2"]]
+            }
+
+            try:
+                result = session.run(queries.generate_route_midpoint, params)
+                if result.peek():
+                    row = result.peek()
+                    return jsonify({"routeId": row["routeId"]})
+            except ResultError as e:
+                print("End of stream? {0}".format(e))
+                continue
+        return {"Error": "No route id found"}
+
+
 @app.route('/routes', methods=['POST'])
 def routes():
     if request.method == "POST":
@@ -80,7 +170,7 @@ def routes():
         lat = float(request.form.get('latitude'))
         lon = float(request.form.get('longitude'))
 
-        points_to_generate = 200
+        points_to_generate = 1000
         generated_points = util.generate_points(lat, lon, radius, points_to_generate)
         low_index = random.randint(0, points_to_generate) - 1
 
@@ -90,8 +180,8 @@ def routes():
             point["distanceFromLowIndex"] = haversine((point["lat"], point["lon"]),
                                                       (low_point["lat"], low_point["lon"])) * 1000
 
-        suitable_high_points = [point for point in generated_points if
-                                estimated_distance / 4 > point["distanceFromLowIndex"] > estimated_distance / 10]
+        suitable_high_points = [point for point in generated_points
+                                if estimated_distance / 4 > point["distanceFromLowIndex"] > estimated_distance / 10]
         high_index = random.randint(0, len(suitable_high_points)) - 1
         high_point = suitable_high_points[high_index]
 

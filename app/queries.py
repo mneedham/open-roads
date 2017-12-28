@@ -9,6 +9,47 @@ RETURN {latitude: r.start[0], longitude: r.start[1] } AS start,
        r.estimatedDistance AS estimatedDistance
 """
 
+generate_mid_points = """\
+MATCH (middle1:Road)
+WHERE {middle1LatLow} < middle1.latitude < {middle1LatHigh}
+AND   {middle1LongLow} < middle1.longitude < {middle1LongHigh}
+AND SIZE((middle1)-[:CONNECTS]-()) > 1
+
+MATCH (middle2:Road)
+WHERE {middle2LatLow} < middle2.latitude < {middle2LatHigh}
+AND   {middle2LongLow} < middle2.longitude < {middle2LongHigh}
+AND SIZE((middle2)-[:CONNECTS]-()) > 1
+
+WITH middle1, middle2 
+WHERE size(apoc.coll.toSet([middle1, middle2])) = 2
+
+RETURN middle1, middle2
+ORDER BY rand()
+"""
+
+generate_route_midpoint = """\
+UNWIND {midpoints} AS midpoint
+MATCH (road:Road {id: midpoint })
+WITH COLLECT(road) AS midpoints
+
+MATCH (start:Road {latitude: {lat}, longitude: {long}})
+
+CALL roads.findMeARoute(start, midpoints, {segmentId}) YIELD path
+
+WITH midpoints, nodes(path) AS roads, relationships(path) AS connections, start
+
+MERGE (route:Route { points: [road in roads | road.latitude + "," + road.longitude] })
+ON CREATE SET route.id =  apoc.create.uuid()
+SET route.start = [start.latitude, start.longitude],
+    route.middle1 = [midpoints[0].latitude, midpoints[0].longitude],
+    route.middle2 = [midpoints[1].latitude, midpoints[1].longitude],
+    route.distance = reduce(acc=0, connection in connections | acc + connection.length ),
+    route.estimatedDistance = {estimatedDistance},
+    route.direction = {direction}
+
+RETURN route.id AS routeId
+"""
+
 generate_route = """\
 MATCH (middle1:Road)
 WHERE {middle1LatLow} < middle1.latitude < {middle1LatHigh}
@@ -41,7 +82,7 @@ SET route.start = [start.latitude, start.longitude],
     route.estimatedDistance = {estimatedDistance},
     route.direction = {direction}
 
-return route.id AS routeId
+RETURN route.id AS routeId
 """
 
 all_segments = """\

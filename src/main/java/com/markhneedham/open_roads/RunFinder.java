@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import org.neo4j.graphalgo.GraphAlgoFactory;
 import org.neo4j.graphalgo.PathFinder;
@@ -25,6 +26,7 @@ import org.neo4j.graphdb.ResourceIterator;
 import org.neo4j.graphdb.impl.OrderedByTypeExpander;
 import org.neo4j.graphdb.impl.StandardExpander;
 import org.neo4j.helpers.collection.Pair;
+import org.neo4j.helpers.collection.PrefetchingIterator;
 import org.neo4j.procedure.Context;
 import org.neo4j.procedure.Name;
 import org.neo4j.procedure.Procedure;
@@ -166,7 +168,6 @@ public class RunFinder
 
     static class CombinedPath implements Path
     {
-
         private final Path[] paths;
 
         CombinedPath( Path... paths )
@@ -238,7 +239,16 @@ public class RunFinder
         @Override
         public Iterator<PropertyContainer> iterator()
         {
-            throw new UnsupportedOperationException();
+            Stream<PropertyContainer> combinedPaths = StreamSupport.stream( paths[0].spliterator(), false  );
+
+            for ( int i = 1; i < paths.length; i++ )
+            {
+                Path path = paths[i];
+                Stream<PropertyContainer> thisPath = StreamSupport.stream( path.spliterator(), false ).skip( 1 );
+                combinedPaths = Stream.concat(combinedPaths, thisPath );
+            }
+
+            return combinedPaths.iterator();
         }
     }
 
