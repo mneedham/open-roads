@@ -117,48 +117,6 @@ def generate_mid_points(lat, lon, radius, estimated_distance):
     return mid_points
 
 
-@app.route('/midpoints', methods=['GET'])
-def midpoints():
-    lat = float(request.args.get('latitude'))
-    lon = float(request.args.get('longitude'))
-    segment_id = request.form.get('segment', "")
-
-    estimated_distance = float(request.args.get('distance', 5000))
-
-    lats = sorted([(estimated_distance / 5), (estimated_distance / 4)])
-    radius = random.randint(lats[0], lats[1])
-
-    raw_mid_points = generate_mid_points(lat, lon, radius, estimated_distance)
-
-    mid_points = [{"m1": mid_point["middle1"]["id"], "m2": mid_point["middle2"]["id"]}
-                  for mid_point in raw_mid_points]
-
-    with driver.session() as session:
-        for mid_point in mid_points:
-            params = {
-                "lat": lat,
-                "long": lon,
-                "segmentId": segment_id,
-                "direction": "N/A",
-                "estimatedDistance": estimated_distance,
-                "midpoints": [mid_point["m1"], mid_point["m2"]]
-            }
-
-            try:
-                result = session.run(queries.generate_route_midpoint, params)
-                if result.peek():
-                    row = result.peek()
-                    route_id = row["routeId"]
-                    return redirect(url_for('lookup_route', route_id=route_id,
-                                            lat=request.form.get('latitude'),
-                                            lon=request.form.get('longitude'),
-                                            segment_id=segment_id))
-            except ResultError as e:
-                print("End of stream? {0}".format(e))
-                continue
-        raise Exception("Could not find route")
-
-
 @app.route('/routes', methods=['POST'])
 def routes():
     if request.method == "POST":
@@ -166,15 +124,19 @@ def routes():
         estimated_distance = int(estimated_distance) if estimated_distance else 5000
 
         lats = sorted([(estimated_distance / 5), (estimated_distance / 4)])
-        radius = random.randint(lats[0], lats[1])
+        radius = random.randint(round(lats[0]), round(lats[1]))
 
         lat = float(request.form.get('latitude'))
         lon = float(request.form.get('longitude'))
         segment_id = request.form.get('segment')
 
         raw_mid_points = generate_mid_points(lat, lon, radius, estimated_distance)
-        mid_points = [{"m1": mid_point["middle1"]["id"], "m2": mid_point["middle2"]["id"]}
-                      for mid_point in raw_mid_points]
+        mid_points = [
+            {
+                "m1": mid_point["middle1"]["id"],
+                "m2": mid_point["middle2"]["id"]
+            }
+            for mid_point in raw_mid_points]
 
         with driver.session() as session:
             for mid_point in mid_points:
