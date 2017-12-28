@@ -32,6 +32,7 @@ import org.neo4j.procedure.Context;
 import org.neo4j.procedure.Name;
 import org.neo4j.procedure.Procedure;
 
+import static java.util.stream.Collectors.toList;
 import static java.util.stream.StreamSupport.stream;
 
 public class RunFinder
@@ -58,7 +59,8 @@ public class RunFinder
     )
     {
         System.out.println( "start = " + start + ", midpoints = " + midpoints + ", segmentId = " + segmentId );
-        StandardExpander orderedExpander = new OrderedByTypeExpander().add( RelationshipType.withName( "CONNECTS" ), Direction.BOTH );
+        StandardExpander orderedExpander = new OrderedByTypeExpander().add( RelationshipType.withName( "CONNECTS" ),
+                Direction.BOTH );
         TimeConstrainedExpander expander = new TimeConstrainedExpander( orderedExpander, Clock.systemUTC(), 200 );
         List<Relationship> relationshipsSeenSoFar = new ArrayList<>();
         ShortestPath shortestUniquePathFinder = shortestPathFinder( relationshipsSeenSoFar, expander );
@@ -66,23 +68,27 @@ public class RunFinder
         List<Path> paths = new ArrayList<>();
         List<Node> one;
         List<Node> two;
-        if( !segmentId.isEmpty() )
+        if ( !segmentId.isEmpty() )
         {
-            List<Node> roads = findRoadsForSegment( segmentId );
+            List<Node> roadsInSegment = findRoadsForSegment( segmentId );
+            Node startOfSegment = roadsInSegment.get( 0 );
+            Node endOfSegment = roadsInSegment.get( roadsInSegment.size() - 1 );
 
-            Path path = shortestUniquePathFinder.findSinglePath( start, roads.get( 0 ) );
+            Path path = shortestUniquePathFinder.findSinglePath( start, startOfSegment );
             if ( path == null )
             {
                 return Stream.empty();
             }
             paths.add( path );
-            paths.addAll( findPaths( orderedExpander, roads ) );
+            paths.addAll( findPaths( orderedExpander, roadsInSegment ) );
 
-            one = Stream.concat( Stream.of(roads.get( roads.size() - 1 )), midpoints.stream() ).collect( Collectors.toList() );
-            two = Stream.concat( midpoints.stream(), Stream.of(start) ).collect( Collectors.toList() );
-        } else {
-            one = Stream.concat( Stream.of(start), midpoints.stream() ).collect( Collectors.toList() );
-            two = Stream.concat( midpoints.stream(), Stream.of(start) ).collect( Collectors.toList() );
+            one = Stream.concat( Stream.of( endOfSegment ), midpoints.stream() ).collect( toList() );
+            two = Stream.concat( midpoints.stream(), Stream.of( start ) ).collect( toList() );
+        }
+        else
+        {
+            one = Stream.concat( Stream.of( start ), midpoints.stream() ).collect( toList() );
+            two = Stream.concat( midpoints.stream(), Stream.of( start ) ).collect( toList() );
         }
 
         for ( Path path : paths )
@@ -97,7 +103,7 @@ public class RunFinder
         List<Node> finalTwo = two;
         List<Pair<Node, Node>> pairs = IntStream.range( 0, Math.min( one.size(), two.size() ) )
                 .mapToObj( index -> Pair.of( finalOne.get( index ), finalTwo.get( index ) ) )
-                .collect( Collectors.toList() );
+                .collect( toList() );
 
         for ( Pair<Node, Node> pair : pairs )
         {
@@ -121,10 +127,10 @@ public class RunFinder
     private List<Path> findPaths( StandardExpander orderedExpander, List<Node> roads )
     {
         List<Path> segmentPaths = new ArrayList<>();
-        List<Node> two = roads.stream().skip( 1 ).collect( Collectors.toList() );
-        List<Node> one = roads.stream().limit( roads.size() - 1 ).collect( Collectors.toList() );
+        List<Node> two = roads.stream().skip( 1 ).collect( toList() );
+        List<Node> one = roads.stream().limit( roads.size() - 1 ).collect( toList() );
         List<Pair<Node, Node>> pairs = IntStream.range( 0, Math.min( one.size(), two.size() ) )
-                .mapToObj( index -> Pair.of( one.get( index ), two.get( index ) ) ).collect( Collectors.toList() );
+                .mapToObj( index -> Pair.of( one.get( index ), two.get( index ) ) ).collect( toList() );
         PathFinder<Path> shortestPathFinder = GraphAlgoFactory.shortestPath( orderedExpander, 250 );
         for ( Pair<Node, Node> pair : pairs )
         {
@@ -151,18 +157,21 @@ public class RunFinder
         for ( String point : (String[]) segment.getProperty( "points" ) )
         {
             String[] parts = point.split( "," );
-            Stream<Node> nodes = db.findNodes( Label.label( "Road" ), "latitude", Double.parseDouble(parts[0]) ).stream();
-            Optional<Node> maybeRoad = nodes.filter( n -> n.getProperty( "longitude" ).equals( Double.parseDouble( parts[1] ) ) ).findFirst();
+            Stream<Node> nodes = db.findNodes( Label.label( "Road" ), "latitude", Double.parseDouble( parts[0] ) )
+                    .stream();
+            Optional<Node> maybeRoad = nodes.filter( n -> n.getProperty( "longitude" ).equals( Double.parseDouble(
+                    parts[1] ) ) ).findFirst();
             maybeRoad.ifPresent( roads::add );
         }
         return roads;
     }
 
-    static class CombinedPath implements  Path {
+    static class CombinedPath implements Path
+    {
 
         private final Path[] paths;
 
-        CombinedPath( Path... paths)
+        CombinedPath( Path... paths )
         {
             this.paths = paths;
         }
@@ -189,34 +198,34 @@ public class RunFinder
         public Iterable<Relationship> relationships()
         {
             return Arrays.stream( paths )
-                    .flatMap(p -> stream(p.relationships().spliterator(), false))
-                    .collect( Collectors.toList() );
+                    .flatMap( p -> stream( p.relationships().spliterator(), false ) )
+                    .collect( toList() );
         }
 
         @Override
         public Iterable<Relationship> reverseRelationships()
         {
             return Arrays.stream( paths )
-                    .flatMap(p -> stream(p.relationships().spliterator(), false))
-                    .sorted(Collections.reverseOrder())
-                    .collect( Collectors.toList() );
+                    .flatMap( p -> stream( p.relationships().spliterator(), false ) )
+                    .sorted( Collections.reverseOrder() )
+                    .collect( toList() );
         }
 
         @Override
         public Iterable<Node> nodes()
         {
             return Arrays.stream( paths )
-                    .flatMap(p -> stream(p.nodes().spliterator(), false))
-                    .collect( Collectors.toList() );
+                    .flatMap( p -> stream( p.nodes().spliterator(), false ) )
+                    .collect( toList() );
         }
 
         @Override
         public Iterable<Node> reverseNodes()
         {
             return Arrays.stream( paths )
-                    .flatMap(p -> stream(p.nodes().spliterator(), false))
-                    .sorted(Collections.reverseOrder())
-                    .collect( Collectors.toList() );
+                    .flatMap( p -> stream( p.nodes().spliterator(), false ) )
+                    .sorted( Collections.reverseOrder() )
+                    .collect( toList() );
         }
 
         @Override
