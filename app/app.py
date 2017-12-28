@@ -132,11 +132,9 @@ def routes():
 
         raw_mid_points = generate_mid_points(lat, lon, radius, estimated_distance)
         mid_points = [
-            {
-                "m1": mid_point["middle1"]["id"],
-                "m2": mid_point["middle2"]["id"]
-            }
-            for mid_point in raw_mid_points]
+            [mid_point["middle1"]["id"], mid_point["middle2"]["id"]]
+            for mid_point in raw_mid_points
+        ]
 
         with driver.session() as session:
             for mid_point in mid_points:
@@ -146,7 +144,7 @@ def routes():
                     "segmentId": segment_id,
                     "direction": "N/A",
                     "estimatedDistance": estimated_distance,
-                    "midpoints": [mid_point["m1"], mid_point["m2"]]
+                    "midpoints": mid_point
                 }
 
                 try:
