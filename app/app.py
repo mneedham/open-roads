@@ -33,22 +33,20 @@ def lookup_route(route_id):
         result = session.run(queries.show_route, {"id": route_id})
 
         for row in result:
-            # print("Start: {start}, Middle: {middle1}, Middle: {middle2}, Distance: {distance}"
-            #       .format(start=row["start"], middle1=row["middle1"], middle2=row["middle2"], distance=row["distance"]))
             distance = row["distance"]
             if distance:
                 for sub_row in row["roads"]:
                     runs.append({"latitude": sub_row["latitude"], "longitude": sub_row["longitude"]})
             direction = row["direction"]
-            estimated_distance = row["estimatedDistance"]
+            estimated_distance = int(row["estimatedDistance"])
 
         lats = [run["latitude"] for run in runs]
         longs = [run["longitude"] for run in runs]
         lat_centre = sum(lats) / len(lats) if len(lats) > 0 else 0
         long_centre = sum(longs) / len(lats) if len(lats) > 0 else 0
 
-        lat = request.args.get("lat")
-        lon = request.args.get("lon")
+        lat = request.args.get("lat", "51.357397146246264")
+        lon = request.args.get("lon", "-0.20153965352074504")
         segment = request.args.get("segment_id")
 
         if content_type == "gpx":
@@ -121,7 +119,6 @@ def generate_mid_points(lat, lon, radius, estimated_distance):
 
 @app.route('/midpoints', methods=['GET'])
 def midpoints():
-
     lat = float(request.args.get('latitude'))
     lon = float(request.args.get('longitude'))
     estimated_distance = float(request.args.get('distance', 5000))
@@ -130,8 +127,6 @@ def midpoints():
     radius = random.randint(lats[0], lats[1])
 
     raw_mid_points = generate_mid_points(lat, lon, radius, estimated_distance)
-
-    print("Combinations: {0}".format(len(raw_mid_points)))
 
     mid_points = [{"m1": mid_point["middle1"]["id"], "m2": mid_point["middle2"]["id"]}
                   for mid_point in raw_mid_points]
