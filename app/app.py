@@ -67,6 +67,14 @@ def lookup_route(route_id):
                                    )
 
 
+def calculate_lat_high(lat_variability, lat_low):
+    return lat_low + (lat_variability * 0.0000089)
+
+
+def calculate_long_high(lat, long_variability, long_low):
+    return long_low + ((long_variability * 0.0000089) / math.cos(lat * 0.018))
+
+
 def generate_mid_points(lat, lon, radius, estimated_distance):
     points_to_generate = 1000
     generated_points = util.generate_points(lat, lon, radius, points_to_generate)
@@ -89,14 +97,14 @@ def generate_mid_points(lat, lon, radius, estimated_distance):
     middle1_lat_low = low_point["lat"]
     middle1_long_low = low_point["lon"]
 
-    middle1_lat_high = middle1_lat_low + (lat_variability * 0.0000089)
-    middle1_long_high = middle1_long_low + ((long_variability * 0.0000089) / math.cos(lat * 0.018))
+    middle1_lat_high = calculate_lat_high(lat_variability, middle1_lat_low)
+    middle1_long_high = calculate_long_high(lat, long_variability, middle1_long_low)
 
     middle2_lat_low = high_point["lat"]
     middle2_long_low = high_point["lon"]
 
-    middle2_lat_high = middle2_lat_low + (lat_variability * 0.0000089)
-    middle2_long_high = middle2_long_low + ((long_variability * 0.0000089) / math.cos(lat * 0.018))
+    middle2_lat_high = calculate_lat_high(lat_variability, middle2_lat_low)
+    middle2_long_high = calculate_long_high(lat, long_variability, middle2_long_low)
 
     params = {
         "middle1LatLow": middle1_lat_low,
