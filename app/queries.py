@@ -20,10 +20,10 @@ WHERE {middle2LatLow} < middle2.latitude < {middle2LatHigh}
 AND   {middle2LongLow} < middle2.longitude < {middle2LongHigh}
 AND SIZE((middle2)-[:CONNECTS]-()) > 1
 
-WITH middle1, middle2 
-WHERE size(apoc.coll.toSet([middle1, middle2])) = 2
+WITH [middle1, middle2] AS midpoints 
+WHERE size(apoc.coll.toSet(midpoints)) = 2
 
-RETURN [middle1, middle2] AS midpoints
+RETURN midpoints
 ORDER BY rand()
 """
 
