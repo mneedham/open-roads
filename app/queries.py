@@ -23,7 +23,7 @@ AND SIZE((middle2)-[:CONNECTS]-()) > 1
 WITH middle1, middle2 
 WHERE size(apoc.coll.toSet([middle1, middle2])) = 2
 
-RETURN middle1, middle2
+RETURN [middle1, middle2] AS midpoints
 ORDER BY rand()
 """
 

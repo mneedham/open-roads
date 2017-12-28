@@ -132,7 +132,7 @@ def routes():
 
         raw_mid_points = generate_mid_points(lat, lon, radius, estimated_distance)
         mid_points = [
-            [mid_point["middle1"]["id"], mid_point["middle2"]["id"]]
+            [mp["id"] for mp in mid_point["midpoints"]]
             for mid_point in raw_mid_points
         ]
 
