@@ -146,30 +146,6 @@ def routes():
                                 segment_id=segment_id))
 
 
-@app.route('/points')
-def points():
-    generated_points = util.generate_points(51.357397146246264, -0.20153965352074504, 2000.0, 20)
-    low_index = random.randint(0, 20) - 1
-    high_index = random.randint(0, 20) - 1
-
-    lat_low = generated_points[low_index]["lat"]
-    long_low = generated_points[low_index]["lon"]
-
-    lat_high = generated_points[high_index]["lat"]
-    long_high = generated_points[high_index]["lon"]
-
-    return render_template("markers.html",
-                           runs=json.dumps([]),
-                           lat_centre=51.357397146246264,
-                           long_centre=-0.20153965352074504,
-                           lat_low=lat_low,
-                           lon_low=long_low,
-                           lat_high=lat_high,
-                           lon_high=long_high,
-                           segments=all_segments()
-                           )
-
-
 def all_segments():
     with driver.session() as session:
         result = session.run(queries.all_segments)
@@ -223,5 +199,7 @@ def find_segment(segment_id):
                                lat_centre=lat,
                                long_centre=lon,
                                lat=lat,
-                               lon=lon
+                               lon=lon,
+                               segment_id=int(segment_id) if segment_id else segment_id,
+                               segments=all_segments()
                                )

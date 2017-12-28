@@ -6,10 +6,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -35,6 +32,8 @@ import org.neo4j.procedure.Procedure;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.StreamSupport.stream;
 
+import static org.neo4j.graphdb.Direction.BOTH;
+
 public class RunFinder
 {
     @Context
@@ -59,13 +58,12 @@ public class RunFinder
     )
     {
         System.out.println( "start = " + start + ", midpoints = " + midpoints + ", segmentId = " + segmentId );
-        StandardExpander orderedExpander = new OrderedByTypeExpander().add( RelationshipType.withName( "CONNECTS" ),
-                Direction.BOTH );
+        StandardExpander orderedExpander = new OrderedByTypeExpander().add( RelationshipType.withName( "CONNECTS" ), BOTH );
         TimeConstrainedExpander expander = new TimeConstrainedExpander( orderedExpander, Clock.systemUTC(), 200 );
         List<Relationship> relationshipsSeenSoFar = new ArrayList<>();
         ShortestPath shortestUniquePathFinder = shortestPathFinder( relationshipsSeenSoFar, expander );
 
-        List<Path> paths = new ArrayList<>();
+        List<Path> route = new ArrayList<>();
         List<Node> one;
         List<Node> two;
         if ( !segmentId.isEmpty() )
@@ -79,8 +77,8 @@ public class RunFinder
             {
                 return Stream.empty();
             }
-            paths.add( path );
-            paths.addAll( findPaths( orderedExpander, roadsInSegment ) );
+            route.add( path );
+            route.addAll( findPaths( orderedExpander, roadsInSegment ) );
 
             one = Stream.concat( Stream.of( endOfSegment ), midpoints.stream() ).collect( toList() );
             two = Stream.concat( midpoints.stream(), Stream.of( start ) ).collect( toList() );
@@ -91,7 +89,7 @@ public class RunFinder
             two = Stream.concat( midpoints.stream(), Stream.of( start ) ).collect( toList() );
         }
 
-        for ( Path path : paths )
+        for ( Path path : route )
         {
             for ( Relationship relationship : path.relationships() )
             {
@@ -110,10 +108,10 @@ public class RunFinder
             Path path = shortestUniquePathFinder.findSinglePath( pair.first(), pair.other() );
             if ( path == null )
             {
-                System.out.println( "paths expanded = " + expander.pathsExpanded() );
+                System.out.println( "route expanded = " + expander.pathsExpanded() );
                 return Stream.empty();
             }
-            paths.add( path );
+            route.add( path );
 
             for ( Relationship relationship : path.relationships() )
             {
@@ -121,7 +119,7 @@ public class RunFinder
             }
         }
 
-        return Stream.of( new Hit( paths.toArray( new Path[paths.size()] ) ) );
+        return Stream.of( new Hit( route.toArray( new Path[route.size()] ) ) );
     }
 
     private List<Path> findPaths( StandardExpander orderedExpander, List<Node> roads )
