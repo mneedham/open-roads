@@ -75,19 +75,22 @@ def calculate_long_high(lat, long_variability, long_low):
     return long_low + ((long_variability * 0.0000089) / math.cos(lat * 0.018))
 
 
-def generate_mid_points(lat, lon, radius, estimated_distance):
+def filter_point(point, low_point, estimated_distance):
+    distance_from_low_index = haversine((point["lat"], point["lon"]), (low_point["lat"], low_point["lon"])) * 1000
+    print(point, low_point, distance_from_low_index)
+    return estimated_distance / 4 > distance_from_low_index > estimated_distance / 10
+
+
+def generate_mid_points(lat, lon, radius, estimated_distance, filter_fn=filter_point):
     points_to_generate = 1000
     generated_points = util.generate_points(lat, lon, radius, points_to_generate)
-    low_index = random.randint(0, points_to_generate) - 1
 
+    low_index = random.randint(0, points_to_generate) - 1
     low_point = generated_points[low_index]
 
-    for point in generated_points:
-        point["distanceFromLowIndex"] = haversine((point["lat"], point["lon"]),
-                                                  (low_point["lat"], low_point["lon"])) * 1000
-
     suitable_high_points = [point for point in generated_points
-                            if estimated_distance / 4 > point["distanceFromLowIndex"] > estimated_distance / 10]
+                            if filter_fn(point, low_point, estimated_distance)]
+
     high_index = random.randint(0, len(suitable_high_points)) - 1
     high_point = suitable_high_points[high_index]
 
@@ -142,7 +145,12 @@ def routes():
         midpoint_lon = float(shape_lon) if shape_lon else start_lon
         midpoint_radius = float(shape_radius) if shape_radius else calculate_radius(estimated_distance)
 
-        raw_mid_points = generate_mid_points(midpoint_lat, midpoint_lon, midpoint_radius, estimated_distance)
+        if shape_radius:
+            filter_fn = lambda point, low_point, est_distance: True if shape_radius else None
+            raw_mid_points = generate_mid_points(midpoint_lat, midpoint_lon, midpoint_radius, estimated_distance, filter_fn)
+        else:
+            raw_mid_points = generate_mid_points(midpoint_lat, midpoint_lon, midpoint_radius, estimated_distance)
+
         mid_points = [
             [mp["id"] for mp in mid_point["midpoints"]]
             for mid_point in raw_mid_points
