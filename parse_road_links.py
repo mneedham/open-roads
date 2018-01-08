@@ -1,8 +1,5 @@
-import xml.etree.ElementTree as ET
-import glob
 import csv
-
-from bng_to_latlon import OSGB36toWGS84
+import xml.etree.ElementTree as ET
 
 ns = {
     'gml': 'http://www.opengis.net/gml/3.2',
@@ -17,7 +14,7 @@ with open("oproad_gml3_gb/data/OSOpenRoads_TQ.gml", "r") as roads_file:
     root = tree.getroot()
 
 with open("road_links.csv", "a") as road_links_file:
-    writer = csv.writer(road_links_file, delimiter = ",")
+    writer = csv.writer(road_links_file, delimiter=",")
     writer.writerow(["start_id", "end_id", "length", "name", "classification", "classification_number"])
     for member in root.findall("gml:featureMember", ns):
         road_link = member.find("road:RoadLink", ns)

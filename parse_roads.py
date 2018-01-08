@@ -1,7 +1,5 @@
-import xml.etree.ElementTree as ET
-import glob
 import csv
-
+import xml.etree.ElementTree as ET
 from bng_to_latlon import OSGB36toWGS84
 
 ns = {
@@ -11,16 +9,13 @@ ns = {
     'tn-ro': 'urn:x-inspire:specification:gmlas:RoadTransportNetwork:3.0'
 }
 
+with open("oproad_gml3_gb/data/OSOpenRoads_TQ.gml", "r") as roads_file:
+    tree = ET.parse(roads_file)
+    root = tree.getroot()
+
 with open("roads.csv", "a") as roads_file:
     writer = csv.writer(roads_file, delimiter = ",")
     writer.writerow(["id", "type", "lat", "lon"])
-
-    # for file in glob.glob("oproad_gml3_gb/data/*.gml"):
-    file = "oproad_gml3_gb/data/OSOpenRoads_TQ.gml"
-    print(file)
-
-    tree = ET.parse(file)
-    root = tree.getroot()
 
     for member in root.findall("gml:featureMember", ns):
         road_link = member.find("road:RoadLink", ns)

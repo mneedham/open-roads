@@ -149,18 +149,14 @@ public class RunFinder
 
     private List<Node> findRoadsForSegment( @Name("segmentId") String segmentId )
     {
-        ResourceIterator<Node> segments = db.findNodes( Label.label( "Segment" ), "id", Integer.parseInt( segmentId ) );
-
-        Node segment = segments.next();
+        Node segment = db.findNode( Label.label( "Segment" ), "id", Integer.parseInt( segmentId ) );
 
         List<Node> roads = new ArrayList<>();
         for ( String point : (String[]) segment.getProperty( "points" ) )
         {
             String[] parts = point.split( "," );
-            Stream<Node> nodes = db.findNodes( Label.label( "Road" ), "latitude", Double.parseDouble( parts[0] ) )
-                    .stream();
-            Optional<Node> maybeRoad = nodes.filter( n -> n.getProperty( "longitude" ).equals( Double.parseDouble(
-                    parts[1] ) ) ).findFirst();
+            Stream<Node> nodes = db.findNodes( Label.label( "Road" ), "latitude", Double.parseDouble( parts[0] ) ).stream();
+            Optional<Node> maybeRoad = nodes.filter( n -> n.getProperty( "longitude" ).equals( Double.parseDouble( parts[1] ) ) ).findFirst();
             maybeRoad.ifPresent( roads::add );
         }
         return roads;

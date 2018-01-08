@@ -7,16 +7,18 @@ import random
 import time
 import util
 
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, jsonify, Response
 from haversine import haversine
 from neo4j.v1 import GraphDatabase, ResultError
-from flask import jsonify
+from flask_cors import CORS
 
 import queries
 
 neo4j_host = os.getenv('NEO4J_HOST', "bolt://localhost:7687")
 
 app = Flask(__name__)
+CORS(app)
+
 driver = GraphDatabase.driver(neo4j_host)
 
 
@@ -67,6 +69,36 @@ def lookup_route(route_id):
                                    )
 
 
+def request_wants_json():
+    best = request.accept_mimetypes.best_match(['application/json', 'text/html'])
+    return best == 'application/json' and request.accept_mimetypes[best] > request.accept_mimetypes['text/html']
+
+
+@app.route('/routes2/<route_id>')
+def lookup_route_json(route_id):
+    distance = 0
+    with driver.session() as session:
+        runs = []
+
+        result = session.run(queries.show_route, {"id": route_id})
+
+        for row in result:
+            distance = row["distance"]
+            if distance:
+                for sub_row in row["roads"]:
+                    runs.append({"latitude": sub_row["latitude"], "longitude": sub_row["longitude"]})
+
+    all_routes = {
+        "roads": runs,
+        "distance": distance
+    }
+
+    response = Response(json.dumps(all_routes), status=200, mimetype='application/json')
+    response.headers['Access-Control-Allow-Origin'] = '*'
+
+    return response
+
+
 def calculate_lat_high(lat_variability, lat_low):
     return lat_low + (lat_variability * 0.0000089)
 
@@ -77,7 +109,6 @@ def calculate_long_high(lat, long_variability, long_low):
 
 def filter_point(point, low_point, estimated_distance):
     distance_from_low_index = haversine((point["lat"], point["lon"]), (low_point["lat"], low_point["lon"])) * 1000
-    print(point, low_point, distance_from_low_index)
     return estimated_distance / 4 > distance_from_low_index > estimated_distance / 10
 
 
@@ -128,6 +159,77 @@ def generate_mid_points(lat, lon, radius, estimated_distance, filter_fn=filter_p
     return mid_points
 
 
+@app.route('/routes2', methods=['POST', 'OPTIONS', 'GET'])
+def routes2():
+    if request.method == "GET":
+        with driver.session() as session:
+            runs = [{
+                "id": row["r"]["id"],
+                "distance": row["r"]["distance"],
+                "roads": [{"latitude": sub_row["latitude"], "longitude": sub_row["longitude"]} for sub_row in
+                          row["r"]["roads"]]
+            }
+                for row in session.run(queries.all_routes)]
+
+            return jsonify(runs)
+    elif request.method == "POST":
+        generate_route_request = request.get_json()
+        print(generate_route_request, request.method)
+
+        estimated_distance = generate_route_request["estimatedDistance"]
+        estimated_distance = int(estimated_distance) if estimated_distance else 5000
+
+        start_lat = float(generate_route_request["startLatitude"])
+        start_lon = float(generate_route_request["startLongitude"])
+
+        shape_lat = generate_route_request.get("shapeLatitude")
+        shape_lon = generate_route_request.get('shapeLongitude')
+        shape_radius = generate_route_request.get("shapeRadius")
+
+        midpoint_lat = float(shape_lat) if shape_lat else start_lat
+        midpoint_lon = float(shape_lon) if shape_lon else start_lon
+        midpoint_radius = float(shape_radius) if shape_radius else calculate_radius(estimated_distance)
+
+        if shape_radius:
+            filter_fn = lambda point, low_point, est_distance: True if shape_radius else None
+            raw_mid_points = generate_mid_points(midpoint_lat, midpoint_lon, midpoint_radius, estimated_distance, filter_fn)
+        else:
+            raw_mid_points = generate_mid_points(midpoint_lat, midpoint_lon, midpoint_radius, estimated_distance)
+
+        mid_points = [
+            [mp["id"] for mp in mid_point["midpoints"]]
+            for mid_point in raw_mid_points
+        ]
+
+        segment_id = generate_route_request.get('selectedSegment')
+        segment_id = segment_id if segment_id else ""
+
+        with driver.session() as session:
+            for mid_point in mid_points:
+                params = {
+                    "lat": start_lat,
+                    "long": start_lon,
+                    "segmentId": segment_id,
+                    "direction": "N/A",
+                    "estimatedDistance": estimated_distance,
+                    "midpoints": mid_point
+                }
+
+                try:
+                    result = session.run(queries.generate_route_midpoint, params)
+                    if result.peek():
+                        row = result.peek()
+                        route_id = row["routeId"]
+                        return jsonify({"routeId": route_id})
+                except ResultError as e:
+                    print("End of stream? {0}".format(e))
+                    continue
+            raise Exception("Could not find route")
+
+    else:
+        return jsonify({})
+
+
 @app.route('/routes', methods=['POST'])
 def routes():
     if request.method == "POST":
@@ -147,7 +249,8 @@ def routes():
 
         if shape_radius:
             filter_fn = lambda point, low_point, est_distance: True if shape_radius else None
-            raw_mid_points = generate_mid_points(midpoint_lat, midpoint_lon, midpoint_radius, estimated_distance, filter_fn)
+            raw_mid_points = generate_mid_points(midpoint_lat, midpoint_lon, midpoint_radius, estimated_distance,
+                                                 filter_fn)
         else:
             raw_mid_points = generate_mid_points(midpoint_lat, midpoint_lon, midpoint_radius, estimated_distance)
 
@@ -193,6 +296,11 @@ def all_segments():
     with driver.session() as session:
         result = session.run(queries.all_segments)
         return [{"id": row["segment"]["id"], "name": row["segment"]["name"]} for row in result]
+
+
+@app.route("/segments2")
+def get_all_segments():
+    return jsonify(all_segments())
 
 
 @app.route('/')

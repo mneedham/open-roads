@@ -92,7 +92,14 @@ RETURN segment
 
 all_routes = """\
 MATCH (r:Route)
-RETURN r
+WHERE 5000 < r.distance < 12000
+RETURN r { 
+            .id, 
+            .distance, 
+            roads: [point in r.points | apoc.map.fromLists(["latitude", "longitude"], [p in split(point, ",") | toFloat(p) ])  ]
+          }
+ORDER BY rand()
+LIMIT 20
 """
 
 
