@@ -159,6 +159,10 @@ def generate_mid_points(lat, lon, radius, estimated_distance, filter_fn=filter_p
     return mid_points
 
 
+def no_filter(point, low_point, estimated_distance):
+    return True
+
+
 @app.route('/routes2', methods=['POST', 'OPTIONS', 'GET'])
 def routes2():
     if request.method == "GET":
@@ -191,8 +195,7 @@ def routes2():
         midpoint_radius = float(shape_radius) if shape_radius else calculate_radius(estimated_distance)
 
         if shape_radius:
-            filter_fn = lambda point, low_point, est_distance: True if shape_radius else None
-            raw_mid_points = generate_mid_points(midpoint_lat, midpoint_lon, midpoint_radius, estimated_distance, filter_fn)
+            raw_mid_points = generate_mid_points(midpoint_lat, midpoint_lon, midpoint_radius, estimated_distance, no_filter)
         else:
             raw_mid_points = generate_mid_points(midpoint_lat, midpoint_lon, midpoint_radius, estimated_distance)
 
