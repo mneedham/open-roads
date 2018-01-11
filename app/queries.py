@@ -87,7 +87,12 @@ RETURN route.id AS routeId
 
 all_segments = """\
 MATCH (segment:Segment)
-RETURN segment
+RETURN segment {
+                    .id, 
+                    .name,
+                     roads: [point in segment.points | apoc.map.fromLists(["latitude", "longitude"], [p in split(point, ",") | toFloat(p) ])  ]
+               }
+ORDER BY segment.name               
 """
 
 all_routes = """\
@@ -106,4 +111,11 @@ LIMIT 20
 find_segment = """\
 MATCH (segment:Segment {id: {id}})
 RETURN [point in segment.points | apoc.map.fromLists(["latitude", "longitude"], [p in split(point, ",") | toFloat(p) ])  ] AS roads
+"""
+
+
+show_segment = """\
+match (s:Segment {id: {id} })
+RETURN [point in s.points | apoc.map.fromLists(["latitude", "longitude"], [p in split(point, ",") | toFloat(p) ])  ] AS roads,
+       s.name AS name       
 """

@@ -3,16 +3,13 @@ from __future__ import division
 import json
 import math
 import os
+import queries
 import random
-import time
 import util
-
 from flask import Flask, render_template, request, redirect, url_for, jsonify, Response
+from flask_cors import CORS
 from haversine import haversine
 from neo4j.v1 import GraphDatabase, ResultError
-from flask_cors import CORS
-
-import queries
 
 neo4j_host = os.getenv('NEO4J_HOST', "bolt://localhost:7687")
 
@@ -112,7 +109,7 @@ def filter_point(point, low_point, estimated_distance):
     return estimated_distance / 4 > distance_from_low_index > estimated_distance / 10
 
 
-def generate_mid_points(lat, lon, radius, estimated_distance, filter_fn=filter_point):
+def generate_mid_points(lat, lon, radius, estimated_distance, filter_fn):
     points_to_generate = 1000
     generated_points = util.generate_points(lat, lon, radius, points_to_generate)
 
@@ -125,8 +122,8 @@ def generate_mid_points(lat, lon, radius, estimated_distance, filter_fn=filter_p
     high_index = random.randint(0, len(suitable_high_points)) - 1
     high_point = suitable_high_points[high_index]
 
-    lat_variability = 500
-    long_variability = 500
+    lat_variability = estimated_distance / 10
+    long_variability = estimated_distance / 10
 
     middle1_lat_low = low_point["lat"]
     middle1_long_low = low_point["lon"]
@@ -178,7 +175,6 @@ def routes2():
             return jsonify(runs)
     elif request.method == "POST":
         generate_route_request = request.get_json()
-        print(generate_route_request, request.method)
 
         estimated_distance = generate_route_request["estimatedDistance"]
         estimated_distance = int(estimated_distance) if estimated_distance else 5000
@@ -192,12 +188,12 @@ def routes2():
 
         midpoint_lat = float(shape_lat) if shape_lat else start_lat
         midpoint_lon = float(shape_lon) if shape_lon else start_lon
-        midpoint_radius = float(shape_radius) if shape_radius else calculate_radius(estimated_distance)
+        radius = float(shape_radius) if shape_radius else calculate_radius(estimated_distance)
 
         if shape_radius:
-            raw_mid_points = generate_mid_points(midpoint_lat, midpoint_lon, midpoint_radius, estimated_distance, no_filter)
+            raw_mid_points = generate_mid_points(midpoint_lat, midpoint_lon, radius, estimated_distance, no_filter)
         else:
-            raw_mid_points = generate_mid_points(midpoint_lat, midpoint_lon, midpoint_radius, estimated_distance)
+            raw_mid_points = generate_mid_points(midpoint_lat, midpoint_lon, radius, estimated_distance, filter_point)
 
         mid_points = [
             [mp["id"] for mp in mid_point["midpoints"]]
@@ -298,13 +294,41 @@ def calculate_radius(estimated_distance):
 def all_segments():
     with driver.session() as session:
         result = session.run(queries.all_segments)
-        return [{"id": row["segment"]["id"], "name": row["segment"]["name"]} for row in result]
+        return [
+            {
+                "id": row["segment"]["id"],
+                "name": row["segment"]["name"],
+                "roads": row["segment"]["roads"]
+            }
+            for row in result]
 
 
 @app.route("/segments2")
 def get_all_segments():
     return jsonify(all_segments())
 
+
+@app.route('/segments2/<segment_id>')
+def lookup_segment_json(segment_id):
+    with driver.session() as session:
+        runs = []
+
+        result = session.run(queries.show_segment, {"id": int(segment_id)})
+
+        row = result.peek()
+        name = row["name"]
+        for sub_row in row["roads"]:
+            runs.append({"latitude": sub_row["latitude"], "longitude": sub_row["longitude"]})
+
+    segment = {
+        "roads": runs,
+        "name": name
+    }
+
+    response = Response(json.dumps(segment), status=200, mimetype='application/json')
+    response.headers['Access-Control-Allow-Origin'] = '*'
+
+    return response
 
 @app.route('/')
 def home():
