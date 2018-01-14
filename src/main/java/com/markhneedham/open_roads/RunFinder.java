@@ -25,6 +25,7 @@ import org.neo4j.graphdb.RelationshipType;
 import org.neo4j.graphdb.ResourceIterator;
 import org.neo4j.graphdb.impl.OrderedByTypeExpander;
 import org.neo4j.graphdb.impl.StandardExpander;
+import org.neo4j.helpers.collection.Iterables;
 import org.neo4j.helpers.collection.Pair;
 import org.neo4j.helpers.collection.PrefetchingIterator;
 import org.neo4j.procedure.Context;
@@ -44,11 +45,13 @@ public class RunFinder
 
     public static class Hit
     {
-        public Path path;
+        public List<Node> roads;
+        public long distance;
 
-        public Hit( Path... paths )
+        public Hit( long distance, Node... roads )
         {
-            path = new CombinedPath( paths );
+            this.roads = Arrays.asList(roads);
+            this.distance = distance;
         }
     }
 
@@ -60,7 +63,8 @@ public class RunFinder
     )
     {
         System.out.println( "start = " + start + ", midpoints = " + midpoints + ", segmentId = " + segmentId );
-        StandardExpander orderedExpander = new OrderedByTypeExpander().add( RelationshipType.withName( "CONNECTS" ), BOTH );
+        StandardExpander orderedExpander = new OrderedByTypeExpander().add( RelationshipType.withName( "CONNECTS" ),
+                BOTH );
         TimeConstrainedExpander expander = new TimeConstrainedExpander( orderedExpander, Clock.systemUTC(), 200 );
         List<Relationship> relationshipsSeenSoFar = new ArrayList<>();
         ShortestPath shortestUniquePathFinder = shortestPathFinder( relationshipsSeenSoFar, expander );
@@ -68,9 +72,15 @@ public class RunFinder
         List<Path> route = new ArrayList<>();
         List<Node> one;
         List<Node> two;
+
+        List<Node> roads = new ArrayList<>();
+
+        long distance = 0l;
         if ( !segmentId.isEmpty() )
         {
-            List<Node> roadsInSegment = findRoadsForSegment( segmentId );
+            Node segment = findSegment( segmentId );
+            List<Node> roadsInSegment = findRoadsForSegment( segment );
+
             Node startOfSegment = roadsInSegment.get( 0 );
             Node endOfSegment = roadsInSegment.get( roadsInSegment.size() - 1 );
 
@@ -79,8 +89,18 @@ public class RunFinder
             {
                 return Stream.empty();
             }
+
             route.add( path );
-            route.addAll( findPaths( orderedExpander, roadsInSegment ) );
+            roads.addAll( Iterables.asList( path.nodes() ) );
+
+            for ( Relationship relationship : path.relationships() )
+            {
+                relationshipsSeenSoFar.add( relationship );
+                distance += Long.valueOf( relationship.getProperty( "length" ).toString() );
+            }
+
+            distance += Long.valueOf( segment.getProperty( "distance" ).toString() );
+            roads.addAll( roadsInSegment );
 
             one = Stream.concat( Stream.of( endOfSegment ), midpoints.stream() ).collect( toList() );
             two = Stream.concat( midpoints.stream(), Stream.of( start ) ).collect( toList() );
@@ -89,14 +109,6 @@ public class RunFinder
         {
             one = Stream.concat( Stream.of( start ), midpoints.stream() ).collect( toList() );
             two = Stream.concat( midpoints.stream(), Stream.of( start ) ).collect( toList() );
-        }
-
-        for ( Path path : route )
-        {
-            for ( Relationship relationship : path.relationships() )
-            {
-                relationshipsSeenSoFar.add( relationship );
-            }
         }
 
         List<Node> finalOne = one;
@@ -114,14 +126,16 @@ public class RunFinder
                 return Stream.empty();
             }
             route.add( path );
+            roads.addAll(Iterables.asList(path.nodes()));
 
             for ( Relationship relationship : path.relationships() )
             {
                 relationshipsSeenSoFar.add( relationship );
+                distance += Long.valueOf( relationship.getProperty( "length" ).toString() );
             }
         }
 
-        return Stream.of( new Hit( route.toArray( new Path[route.size()] ) ) );
+        return Stream.of( new Hit( distance, roads.toArray( new Node[roads.size()] ) ) );
     }
 
     private List<Path> findPaths( StandardExpander orderedExpander, List<Node> roads )
@@ -147,19 +161,25 @@ public class RunFinder
                 stream( path.relationships().spliterator(), false ).noneMatch( relationshipsSeenSoFar::contains ) );
     }
 
-    private List<Node> findRoadsForSegment( @Name("segmentId") String segmentId )
-    {
-        Node segment = db.findNode( Label.label( "Segment" ), "id", Integer.parseInt( segmentId ) );
 
+    private List<Node> findRoadsForSegment( Node segment )
+    {
         List<Node> roads = new ArrayList<>();
         for ( String point : (String[]) segment.getProperty( "points" ) )
         {
             String[] parts = point.split( "," );
-            Stream<Node> nodes = db.findNodes( Label.label( "Road" ), "latitude", Double.parseDouble( parts[0] ) ).stream();
-            Optional<Node> maybeRoad = nodes.filter( n -> n.getProperty( "longitude" ).equals( Double.parseDouble( parts[1] ) ) ).findFirst();
+            Stream<Node> nodes = db.findNodes( Label.label( "Road" ), "latitude", Double.parseDouble( parts[0] ) )
+                    .stream();
+            Optional<Node> maybeRoad = nodes.filter( n -> n.getProperty( "longitude" ).equals( Double.parseDouble(
+                    parts[1] ) ) ).findFirst();
             maybeRoad.ifPresent( roads::add );
         }
         return roads;
+    }
+
+    private Node findSegment( @Name("segmentId") String segmentId )
+    {
+        return db.findNode( Label.label( "Segment" ), "id", Integer.parseInt( segmentId ) );
     }
 
     static class CombinedPath implements Path
@@ -235,13 +255,13 @@ public class RunFinder
         @Override
         public Iterator<PropertyContainer> iterator()
         {
-            Stream<PropertyContainer> combinedPaths = StreamSupport.stream( paths[0].spliterator(), false  );
+            Stream<PropertyContainer> combinedPaths = StreamSupport.stream( paths[0].spliterator(), false );
 
             for ( int i = 1; i < paths.length; i++ )
             {
                 Path path = paths[i];
                 Stream<PropertyContainer> thisPath = StreamSupport.stream( path.spliterator(), false ).skip( 1 );
-                combinedPaths = Stream.concat(combinedPaths, thisPath );
+                combinedPaths = Stream.concat( combinedPaths, thisPath );
             }
 
             return combinedPaths.iterator();
