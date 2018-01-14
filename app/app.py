@@ -215,6 +215,7 @@ def routes2():
                 }
 
                 try:
+                    print(params)
                     result = session.run(queries.generate_route_midpoint, params)
                     if result.peek():
                         row = result.peek()

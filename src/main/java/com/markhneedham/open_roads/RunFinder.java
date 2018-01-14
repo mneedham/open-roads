@@ -46,9 +46,9 @@ public class RunFinder
     public static class Hit
     {
         public List<Node> roads;
-        public long distance;
+        public double distance;
 
-        public Hit( long distance, Node... roads )
+        public Hit( double distance, Node... roads )
         {
             this.roads = Arrays.asList(roads);
             this.distance = distance;
@@ -75,11 +75,18 @@ public class RunFinder
 
         List<Node> roads = new ArrayList<>();
 
-        long distance = 0l;
+        double distance = 0.0;
         if ( !segmentId.isEmpty() )
         {
             Node segment = findSegment( segmentId );
             List<Node> roadsInSegment = findRoadsForSegment( segment );
+            for ( Path path : findPaths( orderedExpander, roadsInSegment ) )
+            {
+                for ( Relationship relationship : path.relationships() )
+                {
+                    relationshipsSeenSoFar.add( relationship );
+                }
+            }
 
             Node startOfSegment = roadsInSegment.get( 0 );
             Node endOfSegment = roadsInSegment.get( roadsInSegment.size() - 1 );
@@ -96,10 +103,10 @@ public class RunFinder
             for ( Relationship relationship : path.relationships() )
             {
                 relationshipsSeenSoFar.add( relationship );
-                distance += Long.valueOf( relationship.getProperty( "length" ).toString() );
+                distance += Double.valueOf( relationship.getProperty( "length" ).toString() );
             }
 
-            distance += Long.valueOf( segment.getProperty( "distance" ).toString() );
+            distance += Double.valueOf( segment.getProperty( "distance" ).toString() );
             roads.addAll( roadsInSegment );
 
             one = Stream.concat( Stream.of( endOfSegment ), midpoints.stream() ).collect( toList() );
@@ -131,7 +138,7 @@ public class RunFinder
             for ( Relationship relationship : path.relationships() )
             {
                 relationshipsSeenSoFar.add( relationship );
-                distance += Long.valueOf( relationship.getProperty( "length" ).toString() );
+                distance += Double.valueOf( relationship.getProperty( "length" ).toString() );
             }
         }
 
