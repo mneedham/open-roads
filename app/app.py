@@ -317,12 +317,14 @@ def lookup_segment_json(segment_id):
 
         row = result.peek()
         name = row["name"]
+        distance = row["distance"]
         for sub_row in row["roads"]:
             runs.append({"latitude": sub_row["latitude"], "longitude": sub_row["longitude"]})
 
     segment = {
         "roads": runs,
-        "name": name
+        "name": name,
+        "distance": distance
     }
 
     response = Response(json.dumps(segment), status=200, mimetype='application/json')

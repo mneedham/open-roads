@@ -5,12 +5,6 @@ from neo4j.v1 import GraphDatabase
 
 token = os.environ["TOKEN"]
 headers = {'Authorization': "Bearer {0}".format(token)}
-
-r = requests.get("https://www.strava.com/api/v3/segments/14343345", headers=headers)
-response = r.json()
-print(response["name"], response["id"])
-line = response["map"]["polyline"]
-
 neo4j_host = os.getenv('NEO4J_HOST', "bolt://localhost:7687")
 driver = GraphDatabase.driver(neo4j_host)
 
@@ -25,7 +19,9 @@ limit 1
 
 create_segment_query = """\
 MERGE (segment:Segment {id: {id}})
-SET segment.name = {name}, segment.points = [road in {roads} | road.latitude + "," + road.longitude]
+SET segment.name = {name}, 
+    segment.points = [road in {roads} | road.latitude + "," + road.longitude],
+    segment.distance = {distance}
 """
 
 check_if_path_query = """\
@@ -37,11 +33,16 @@ MATCH path = shortestpath((road1)-[*]-(road2))
 RETURN path 
 """
 
-
-unique_roads = []
-unique_node_ids = []
-
 with driver.session() as session:
+    activity_id = 14343345
+    r = requests.get("https://www.strava.com/api/v3/segments/{0}".format(activity_id), headers=headers)
+    response = r.json()
+    print(response)
+    line = response["map"]["polyline"]
+
+    unique_roads = []
+    unique_node_ids = []
+
     points = polyline.decode(line)
     for point in points:
         result = session.run(lookup_points_query, {"point": {"latitude": point[0], "longitude": point[1]}})
@@ -67,5 +68,6 @@ with driver.session() as session:
     session.run(create_segment_query, {
         "roads": [{"latitude": road[0], "longitude": road[1]} for road in unique_roads],
         "id": response["id"],
-        "name": response["name"]
+        "name": response["name"],
+        "distance": response["distance"]
     })

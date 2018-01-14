@@ -117,5 +117,6 @@ RETURN [point in segment.points | apoc.map.fromLists(["latitude", "longitude"], 
 show_segment = """\
 match (s:Segment {id: {id} })
 RETURN [point in s.points | apoc.map.fromLists(["latitude", "longitude"], [p in split(point, ",") | toFloat(p) ])  ] AS roads,
-       s.name AS name       
+       s.name AS name,
+       s.distance AS distance       
 """
