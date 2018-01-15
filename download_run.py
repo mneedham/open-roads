@@ -1,6 +1,8 @@
 import os
 import polyline
 import requests
+import json
+from dateutil import parser
 from neo4j.v1 import GraphDatabase
 
 token = os.environ["TOKEN"]
@@ -18,20 +20,44 @@ driver = GraphDatabase.driver(neo4j_host)
 create_activity_query = """\
 MERGE (activity:Activity{id: {id}})
 SET activity.points = [road in {roads} | road.latitude + "," + road.longitude]
+
+WITH activity
+
+UNWIND {segmentEfforts} AS segmentEffort
+MATCH (segment:Segment {id: segmentEffort.segmentId })
+MERGE (effort:SegmentEffort {id: segmentEffort.id })
+SET effort.elapsedTime = segmentEffort.elapsedTime,
+    effort.movingTime = segmentEffort.movingTime,
+    effort.startDate = segmentEffort.startDate
+
+MERGE (activity)-[:SEGMENT_EFFORT]->(effort)
+MERGE (effort)-[:SEGMENT]->(segment)
 """
 
-activity1_id = 1355676694
+activity_id = 800204046
+
+
+def segment_efforts(activity):
+    return [
+        {
+            "id": segment_effort["id"],
+            "movingTime": segment_effort["moving_time"],
+            "elapsedTime": segment_effort["elapsed_time"],
+            "startDate": int(parser.parse(segment_effort["start_date"]).timestamp()),
+            "segmentId": segment_effort["segment"]["id"]
+        }
+        for segment_effort in activity["segment_efforts"]
+    ]
+
 
 with driver.session() as session:
-    activity = retrieve_activity(activity1_id)
+    activity = retrieve_activity(activity_id)
+    print(json.dumps(activity["segment_efforts"]))
 
     line = activity["map"]["polyline"]
     points = [{"latitude": point[0], "longitude": point[1]}
               for point in polyline.decode(line)]
 
-    print(activity)
+    params = {"id": activity["id"], "roads": points, "segmentEfforts": segment_efforts(activity)}
 
-    session.run(create_activity_query, {
-        "id": activity["id"],
-        "roads": points
-    })
+    session.run(create_activity_query, params)

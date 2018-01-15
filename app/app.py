@@ -319,19 +319,22 @@ def lookup_segment_json(segment_id):
         row = result.peek()
         name = row["name"]
         distance = row["distance"]
+        efforts = row["efforts"]
         for sub_row in row["roads"]:
             runs.append({"latitude": sub_row["latitude"], "longitude": sub_row["longitude"]})
 
     segment = {
         "roads": runs,
         "name": name,
-        "distance": distance
+        "distance": distance,
+        "efforts": efforts
     }
 
     response = Response(json.dumps(segment), status=200, mimetype='application/json')
     response.headers['Access-Control-Allow-Origin'] = '*'
 
     return response
+
 
 @app.route('/')
 def home():
