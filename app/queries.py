@@ -122,10 +122,12 @@ ORDER BY effort.movingTime
 RETURN [point in s.points | apoc.map.fromLists(["latitude", "longitude"], [p in split(point, ",") | toFloat(p) ])  ] AS roads,
        s.name AS name,
        s.distance AS distance,
-       collect({
+       collect(CASE 
+         WHEN effort IS NULL THEN NULL 
+         ELSE {
          activityId: activity.id,
          effortId: effort.id, 
          time: effort.movingTime,
          date: apoc.date.format(effort.startDate,'s','dd MMM yyyy')
-       }) AS efforts   
+       } END) AS efforts
 """
