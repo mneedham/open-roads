@@ -88,7 +88,8 @@ MATCH (segment:Segment)
 RETURN segment {
                     .id, 
                     .name,
-                     roads: [point in segment.points | apoc.map.fromLists(["latitude", "longitude"], [p in split(point, ",") | toFloat(p) ])  ]
+                     roads: [point in segment.points | apoc.map.fromLists(["latitude", "longitude"], [p in split(point, ",") | toFloat(p) ])  ],
+                     runs: size((segment)<-[:SEGMENT]-()<-[:SEGMENT_EFFORT]-())
                }
 ORDER BY segment.name               
 """

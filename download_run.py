@@ -34,7 +34,7 @@ MERGE (activity)-[:SEGMENT_EFFORT]->(effort)
 MERGE (effort)-[:SEGMENT]->(segment)
 """
 
-activity_id = 800204046
+activity_id = 1338437328
 
 
 def segment_efforts(activity):

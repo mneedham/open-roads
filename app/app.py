@@ -299,7 +299,8 @@ def all_segments():
             {
                 "id": row["segment"]["id"],
                 "name": row["segment"]["name"],
-                "roads": row["segment"]["roads"]
+                "roads": row["segment"]["roads"],
+                "runs": row["segment"]["runs"]
             }
             for row in result]
 
